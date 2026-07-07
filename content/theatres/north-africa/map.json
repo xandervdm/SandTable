@@ -1,0 +1,153 @@
+{
+  "theatreId": "north-africa",
+  "name": "North Africa",
+  "coordinateSystem": {
+    "width": 1000,
+    "height": 600
+  },
+  "regions": [
+    {
+      "id": "casablanca",
+      "name": "Casablanca",
+      "position": { "x": 90, "y": 250 },
+      "terrain": "Coast",
+      "owner": "Allies",
+      "victoryPoints": 3,
+      "supplyValue": 2,
+      "features": ["Port", "City"],
+      "adjacentRegionIds": ["algiers"]
+    },
+    {
+      "id": "algiers",
+      "name": "Algiers",
+      "position": { "x": 225, "y": 205 },
+      "terrain": "Coast",
+      "owner": "Allies",
+      "victoryPoints": 4,
+      "supplyValue": 2,
+      "features": ["Port", "City"],
+      "adjacentRegionIds": ["casablanca", "tunis", "kasserine-pass"]
+    },
+    {
+      "id": "tunis",
+      "name": "Tunis",
+      "position": { "x": 385, "y": 210 },
+      "terrain": "Coast",
+      "owner": "Axis",
+      "victoryPoints": 6,
+      "supplyValue": 2,
+      "features": ["Port", "City"],
+      "adjacentRegionIds": ["algiers", "kasserine-pass", "tripoli"]
+    },
+    {
+      "id": "kasserine-pass",
+      "name": "Kasserine Pass",
+      "position": { "x": 335, "y": 320 },
+      "terrain": "Mountain",
+      "owner": "Allies",
+      "victoryPoints": 4,
+      "supplyValue": 0,
+      "features": [],
+      "adjacentRegionIds": ["algiers", "tunis", "fezzan-desert"]
+    },
+    {
+      "id": "tripoli",
+      "name": "Tripoli",
+      "position": { "x": 490, "y": 345 },
+      "terrain": "Coast",
+      "owner": "Axis",
+      "victoryPoints": 8,
+      "supplyValue": 3,
+      "features": ["Port", "Airfield", "City"],
+      "adjacentRegionIds": ["tunis", "fezzan-desert", "benghazi"]
+    },
+    {
+      "id": "fezzan-desert",
+      "name": "Fezzan Desert",
+      "position": { "x": 455, "y": 460 },
+      "terrain": "Desert",
+      "owner": "Neutral",
+      "victoryPoints": 1,
+      "supplyValue": 0,
+      "features": [],
+      "adjacentRegionIds": ["kasserine-pass", "tripoli", "benghazi"]
+    },
+    {
+      "id": "benghazi",
+      "name": "Benghazi",
+      "position": { "x": 625, "y": 300 },
+      "terrain": "Coast",
+      "owner": "Axis",
+      "victoryPoints": 6,
+      "supplyValue": 2,
+      "features": ["Port", "City"],
+      "adjacentRegionIds": ["tripoli", "fezzan-desert", "gazala"]
+    },
+    {
+      "id": "gazala",
+      "name": "Gazala",
+      "position": { "x": 720, "y": 330 },
+      "terrain": "Rough",
+      "owner": "Axis",
+      "victoryPoints": 4,
+      "supplyValue": 0,
+      "features": ["Fortified"],
+      "adjacentRegionIds": ["benghazi", "tobruk"]
+    },
+    {
+      "id": "tobruk",
+      "name": "Tobruk",
+      "position": { "x": 790, "y": 310 },
+      "terrain": "Coast",
+      "owner": "Allies",
+      "victoryPoints": 8,
+      "supplyValue": 2,
+      "features": ["Port", "Fortified"],
+      "adjacentRegionIds": ["gazala", "el-alamein"]
+    },
+    {
+      "id": "el-alamein",
+      "name": "El Alamein",
+      "position": { "x": 880, "y": 350 },
+      "terrain": "Desert",
+      "owner": "Allies",
+      "victoryPoints": 7,
+      "supplyValue": 1,
+      "features": ["Airfield"],
+      "adjacentRegionIds": ["tobruk", "alexandria"]
+    },
+    {
+      "id": "alexandria",
+      "name": "Alexandria",
+      "position": { "x": 945, "y": 330 },
+      "terrain": "Coast",
+      "owner": "Allies",
+      "victoryPoints": 12,
+      "supplyValue": 3,
+      "features": ["Port", "City"],
+      "adjacentRegionIds": ["el-alamein", "cairo"]
+    },
+    {
+      "id": "cairo",
+      "name": "Cairo",
+      "position": { "x": 955, "y": 430 },
+      "terrain": "City",
+      "owner": "Allies",
+      "victoryPoints": 10,
+      "supplyValue": 2,
+      "features": ["City", "SupplyDepot"],
+      "adjacentRegionIds": ["alexandria"]
+    }
+  ],
+  "routes": [
+    { "fromRegionId": "casablanca", "toRegionId": "algiers", "routeType": "CoastalRoad" },
+    { "fromRegionId": "algiers", "toRegionId": "tunis", "routeType": "CoastalRoad" },
+    { "fromRegionId": "tunis", "toRegionId": "tripoli", "routeType": "CoastalRoad" },
+    { "fromRegionId": "tripoli", "toRegionId": "benghazi", "routeType": "CoastalRoad" },
+    { "fromRegionId": "benghazi", "toRegionId": "gazala", "routeType": "DesertTrack" },
+    { "fromRegionId": "gazala", "toRegionId": "tobruk", "routeType": "CoastalRoad" },
+    { "fromRegionId": "tobruk", "toRegionId": "el-alamein", "routeType": "CoastalRoad" },
+    { "fromRegionId": "el-alamein", "toRegionId": "alexandria", "routeType": "CoastalRoad" },
+    { "fromRegionId": "alexandria", "toRegionId": "cairo", "routeType": "Railroad" }
+  ]
+}

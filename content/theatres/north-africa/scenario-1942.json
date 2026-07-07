@@ -1,0 +1,30 @@
+{
+  "scenarioId": "north-africa-1942",
+  "theatreId": "north-africa",
+  "name": "North Africa Campaign - 1942",
+  "startDate": "1942-06-12",
+  "maxTurns": 15,
+  "defaultSide": "Axis",
+  "startingResources": {
+    "supplies": 1200,
+    "manpower": 850,
+    "fuel": 430,
+    "industry": 210,
+    "commandPoints": 3
+  },
+  "victoryConditions": [
+    {
+      "type": "ControlRegion",
+      "regionId": "alexandria",
+      "requiredOwner": "Axis"
+    }
+  ],
+  "startingUnitIds": [
+    "15th-panzer",
+    "21st-panzer",
+    "africa-corps-logistics",
+    "7th-armoured",
+    "tobruk-garrison",
+    "desert-air-wing"
+  ]
+}

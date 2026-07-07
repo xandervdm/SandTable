@@ -1,0 +1,39 @@
+{
+  "doctrines": [
+    {
+      "id": "balanced",
+      "name": "Balanced",
+      "modifiers": {}
+    },
+    {
+      "id": "mobile-warfare",
+      "name": "Mobile Warfare",
+      "modifiers": {
+        "armourAttackBonus": 1,
+        "fuelConsumptionPenalty": 1
+      }
+    },
+    {
+      "id": "defensive-logistics",
+      "name": "Defensive Logistics",
+      "modifiers": {
+        "supplyBonus": 1,
+        "fortifiedDefenceBonus": 1
+      }
+    },
+    {
+      "id": "air-superiority",
+      "name": "Air Superiority",
+      "modifiers": {
+        "airWingAttackBonus": 1
+      }
+    },
+    {
+      "id": "attrition",
+      "name": "Attrition",
+      "modifiers": {
+        "infantryDefenceBonus": 1
+      }
+    }
+  ]
+}

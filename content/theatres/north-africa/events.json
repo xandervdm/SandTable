@@ -1,0 +1,14 @@
+{
+  "events": [
+    {
+      "id": "enemy-reinforcements-el-alamein",
+      "trigger": { "turn": 6 },
+      "effect": {
+        "type": "AddUnit",
+        "unitId": "allied-armoured-reserve",
+        "regionId": "el-alamein"
+      },
+      "message": "Enemy reinforcements are arriving near El Alamein."
+    }
+  ]
+}

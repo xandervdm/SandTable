@@ -1,10 +1,87 @@
 ﻿namespace SandTable.Engine.Tests;
 
-public class EngineAssemblyTests
+public class NorthAfricaScenarioTests
 {
-    [Fact]
-    public void Engine_assembly_is_referenceable()
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web)
     {
-        Assert.Equal("SandTable.Engine", typeof(Engine.EngineAssemblyMarker).Namespace);
+        PropertyNameCaseInsensitive = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
+
+    [Fact]
+    public async Task North_africa_content_creates_initial_state()
+    {
+        var content = await LoadContentAsync();
+        var factory = new Engine.ScenarioFactory();
+
+        var state = factory.CreateInitialState(content.Map, content.Scenario, content.Units);
+
+        Assert.Equal("north-africa", state.TheatreId);
+        Assert.Equal("north-africa-1942", state.ScenarioId);
+        Assert.Equal(1, state.TurnNumber);
+        Assert.Equal(Engine.Side.Axis, state.PlayerSide);
+        Assert.Contains(state.Regions, region => region.Id == "alexandria" && region.Owner == Engine.Side.Allies);
+        Assert.Contains(state.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "tripoli");
+    }
+
+    [Fact]
+    public async Task Turn_resolution_uses_human_and_ai_commands_from_same_starting_state()
+    {
+        var content = await LoadContentAsync();
+        var startingState = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var humanCommands = new[]
+        {
+            new Engine.SubmittedCommand(1, Engine.CommandSource.Human, Engine.Side.Axis, Engine.OrderType.Move, "15th-panzer", "tripoli", "benghazi")
+        };
+        var aiCommands = new Engine.BasicAiPlanner().Plan(startingState, Engine.Side.Allies);
+
+        var resolution = new Engine.TurnResolver().Resolve(startingState, humanCommands, aiCommands, randomSeed: 1942);
+
+        Assert.NotEmpty(aiCommands);
+        Assert.Equal(2, resolution.NextState.TurnNumber);
+        Assert.Contains(resolution.Events, gameEvent => gameEvent.EventType == Engine.GameEventType.Movement);
+        Assert.Contains(resolution.NextState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "benghazi");
+        Assert.Contains(startingState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "tripoli");
+    }
+
+    private static async Task<(Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units)> LoadContentAsync()
+    {
+        var theatrePath = Path.Combine(FindRepoRoot(), "content", "theatres", "north-africa");
+        return (
+            await ReadJsonAsync<Engine.MapDefinition>(Path.Combine(theatrePath, "map.json")),
+            await ReadJsonAsync<Engine.ScenarioDefinition>(Path.Combine(theatrePath, "scenario-1942.json")),
+            await ReadJsonAsync<Engine.UnitCatalog>(Path.Combine(theatrePath, "units.json")));
+    }
+
+    private static async Task<T> ReadJsonAsync<T>(string path)
+    {
+        await using var stream = File.OpenRead(path);
+        return await System.Text.Json.JsonSerializer.DeserializeAsync<T>(stream, JsonOptions)
+            ?? throw new InvalidOperationException($"Could not read {path}.");
+    }
+
+    private static string FindRepoRoot([System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "")
+    {
+        var sourceDirectory = Path.GetDirectoryName(sourceFilePath);
+        foreach (var candidate in new[] { sourceDirectory, Environment.CurrentDirectory, AppContext.BaseDirectory })
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                continue;
+            }
+
+            var current = new DirectoryInfo(candidate);
+            while (current is not null)
+            {
+                if (File.Exists(Path.Combine(current.FullName, "SandTable.slnx")))
+                {
+                    return current.FullName;
+                }
+
+                current = current.Parent;
+            }
+        }
+
+        throw new DirectoryNotFoundException("Could not locate SandTable.slnx.");
     }
 }

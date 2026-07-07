@@ -1,6 +1,46 @@
 @SandTable.Api_HostAddress = http://localhost:5171
+@CampaignUid = 00000000-0000-0000-0000-000000000000
 
-GET {{SandTable.Api_HostAddress}}/weatherforecast/
+GET {{SandTable.Api_HostAddress}}/api/health
 Accept: application/json
 
 ###
+
+POST {{SandTable.Api_HostAddress}}/api/campaigns
+Content-Type: application/json
+
+{
+  "name": "Development North Africa Campaign",
+  "scenarioId": "north-africa-1942",
+  "playerSide": "Axis"
+}
+
+###
+
+GET {{SandTable.Api_HostAddress}}/api/campaigns
+Accept: application/json
+
+###
+
+GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/snapshot
+Accept: application/json
+
+###
+
+POST {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/commands
+Content-Type: application/json
+
+{
+  "commands": [
+    {
+      "commandType": "Move",
+      "unitId": "15th-panzer",
+      "targetRegionId": "benghazi"
+    }
+  ]
+}
+
+###
+
+POST {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/resolve-turn
+Accept: application/json
