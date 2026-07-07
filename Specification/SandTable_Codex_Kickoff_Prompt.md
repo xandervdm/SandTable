@@ -54,6 +54,7 @@ LLM/AI coaching, or a 3D/isometric renderer in V1.
 -   .NET solution namespace: `SandTable`
 -   Entity Framework Core
 -   PostgreSQL
+-   Dapper for targeted read/query paths where it is simpler than EF
 -   OpenIddict authentication before V1 staging deployment
 -   REST API
 
@@ -119,6 +120,12 @@ SandTable/
 │           ├── units.json
 │           ├── doctrines.json
 │           └── events.json
+│
+├── database/
+│   ├── 001_core_tables.sql
+│   ├── 002_campaign_tables.sql
+│   ├── 003_auth_tables.sql
+│   └── README.md
 │
 ├── tests/
 │   ├── SandTable.Engine.Tests/
@@ -516,6 +523,29 @@ advice in V1. A simple deterministic recommendation is enough.
 
 # Database
 
+Use a database-first workflow.
+
+Step 1 after initial project setup is to create PostgreSQL table-definition
+SQL files in the repository, following the same broad pattern used in the
+SchemaMapper and 80 Percent projects: SQL files are the reviewed source of
+truth first, then the database is published, then EF Core context/entities
+are reverse engineered from the live schema.
+
+Do not start with EF migrations as the schema source of truth. EF migrations
+may be considered later, but V1 should begin with explicit SQL scripts.
+
+Suggested SQL files:
+
+-   `database/001_core_tables.sql`
+-   `database/002_campaign_tables.sql`
+-   `database/003_auth_tables.sql`
+-   `database/README.md`
+
+The SQL should be valid PostgreSQL and should use deliberate naming,
+constraints, indexes, and foreign keys. Prefer explicit `created_at`,
+`updated_at`, optimistic concurrency/version columns where useful, and JSONB
+for serialized campaign snapshots.
+
 Entities:
 
 -   UserAccount
@@ -529,6 +559,13 @@ Entities:
 -   CareerRecord
 
 Store snapshots as JSON.
+
+After the SQL is published to the development database, reverse engineer the
+EF Core `DbContext` and entities from the database. Keep those generated
+models aligned with the SQL source. Add Dapper to the API project for focused
+queries or command handlers where hand-written SQL is clearer, but keep game
+rules inside `SandTable.Engine` and persistence concerns inside the API/data
+layer.
 
 Authentication may start with an implicit development user during early V1
 development so gameplay, persistence, and UI can move quickly. Before V1 is
