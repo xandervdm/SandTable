@@ -12,7 +12,8 @@ public sealed class CampaignService(
     GameContentRepository contentRepository,
     ScenarioFactory scenarioFactory,
     BasicAiPlanner aiPlanner,
-    TurnResolver turnResolver)
+    TurnResolver turnResolver,
+    TensionChoiceResolver tensionChoiceResolver)
 {
     private const string Actor = "system:dev-user";
     private const string EngineVersion = "sandtable-engine-v1";
@@ -325,6 +326,95 @@ public sealed class CampaignService(
         return new SubmitCommandsResponse(campaign.CampaignUid, turn.Uid, request.Commands.Count);
     }
 
+    public async Task<ChooseTensionOptionResponse?> ChooseTensionOptionAsync(
+        Guid campaignUid,
+        string cardId,
+        ChooseTensionOptionRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var campaign = await LoadCampaignAsync(connection, transaction, campaignUid, cancellationToken, forUpdate: true);
+        if (campaign is null)
+        {
+            return null;
+        }
+
+        var turn = await LoadCurrentPlanningTurnAsync(connection, transaction, campaign.Id, campaign.CurrentTurnNumber, cancellationToken);
+        var snapshot = await LoadLatestSnapshotAsync(connection, transaction, campaign.Id, cancellationToken);
+        var nextEventSequence = await LoadNextEventSequenceAsync(connection, transaction, turn.Id, cancellationToken);
+
+        var result = tensionChoiceResolver.Choose(
+            snapshot.State,
+            new ChooseTensionOptionCommand(cardId, request.OptionId, snapshot.State.PlayerSide),
+            nextEventSequence);
+
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                update public.campaign_snapshot
+                set
+                    is_latest = false,
+                    edited_at = now(),
+                    edited_by = @Actor,
+                    version = version + 1
+                where campaign_id = @CampaignId
+                    and is_latest = true
+                """,
+                new { CampaignId = campaign.Id, Actor },
+                transaction,
+                cancellationToken: cancellationToken));
+
+        var newSnapshot = await InsertSnapshotAsync(
+            connection,
+            transaction,
+            campaign.Id,
+            campaign.CampaignUid,
+            turn.Id,
+            "Autosave",
+            result.State,
+            turn.RandomSeed,
+            isLatest: true,
+            cancellationToken);
+
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                update public.campaign_turn
+                set
+                    edited_at = now(),
+                    edited_by = @Actor,
+                    version = version + 1
+                where id = @CampaignTurnId
+                """,
+                new { CampaignTurnId = turn.Id, Actor },
+                transaction,
+                cancellationToken: cancellationToken));
+
+        foreach (var gameEvent in result.Events)
+        {
+            await InsertGameEventAsync(
+                connection,
+                transaction,
+                campaign.Id,
+                turn.Id,
+                gameEvent,
+                cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return new ChooseTensionOptionResponse(
+            campaign.CampaignUid,
+            turn.Uid,
+            newSnapshot.Uid,
+            result.Decision,
+            result.State,
+            result.Events);
+    }
+
     public async Task<ResolveTurnResponse?> ResolveTurnAsync(Guid campaignUid, CancellationToken cancellationToken)
     {
         await using var connection = connectionFactory.CreateConnection();
@@ -339,12 +429,13 @@ public sealed class CampaignService(
 
         var turn = await LoadCurrentTurnForResolutionAsync(connection, transaction, campaign.Id, campaign.CurrentTurnNumber, cancellationToken);
         var snapshot = await LoadLatestSnapshotAsync(connection, transaction, campaign.Id, cancellationToken);
+        var content = await contentRepository.LoadAsync(campaign.TheatreId, campaign.ScenarioId, cancellationToken);
         var humanCommands = await LoadCommandsAsync(connection, transaction, turn.Id, "Human", cancellationToken);
         var aiCommands = aiPlanner.Plan(snapshot.State, snapshot.State.EnemySide);
 
         await InsertAiCommandsAsync(connection, transaction, campaign.Id, turn.Id, snapshot.Id, aiCommands, cancellationToken);
 
-        var resolution = turnResolver.Resolve(snapshot.State, humanCommands, aiCommands, turn.RandomSeed);
+        var resolution = turnResolver.Resolve(snapshot.State, humanCommands, aiCommands, turn.RandomSeed, content.TensionCards);
         foreach (var command in resolution.Commands)
         {
             await connection.ExecuteAsync(
@@ -482,56 +573,19 @@ public sealed class CampaignService(
                     cancellationToken: cancellationToken));
         }
 
+        var persistedEvents = new List<GameEvent>();
+        var nextEventSequence = await LoadNextEventSequenceAsync(connection, transaction, turn.Id, cancellationToken);
         foreach (var gameEvent in resolution.Events)
         {
-            await connection.ExecuteAsync(
-                new CommandDefinition(
-                    """
-                    insert into public.campaign_event (
-                        campaign_id,
-                        campaign_turn_id,
-                        event_sequence,
-                        event_type,
-                        event_scope,
-                        side,
-                        region_id,
-                        unit_id,
-                        summary,
-                        event_payload,
-                        created_by,
-                        edited_by
-                    )
-                    values (
-                        @CampaignId,
-                        @CampaignTurnId,
-                        @EventSequence,
-                        @EventType,
-                        @EventScope,
-                        @Side,
-                        @RegionId,
-                        @UnitId,
-                        @Summary,
-                        cast(@EventPayload as jsonb),
-                        @Actor,
-                        @Actor
-                    )
-                    """,
-                    new
-                    {
-                        CampaignId = campaign.Id,
-                        CampaignTurnId = turn.Id,
-                        EventSequence = gameEvent.Sequence,
-                        EventType = gameEvent.EventType.ToString(),
-                        EventScope = gameEvent.EventScope.ToString(),
-                        Side = gameEvent.Side?.ToString(),
-                        gameEvent.RegionId,
-                        gameEvent.UnitId,
-                        gameEvent.Summary,
-                        EventPayload = JsonSerializer.Serialize(gameEvent.Payload, ApiJson.SerializerOptions),
-                        Actor
-                    },
-                    transaction,
-                    cancellationToken: cancellationToken));
+            var persistedEvent = gameEvent with { Sequence = nextEventSequence++ };
+            persistedEvents.Add(persistedEvent);
+            await InsertGameEventAsync(
+                connection,
+                transaction,
+                campaign.Id,
+                turn.Id,
+                persistedEvent,
+                cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -545,7 +599,7 @@ public sealed class CampaignService(
             resolution.NextState.IsComplete,
             resolution.NextState.Result,
             resolution.Summary,
-            resolution.Events);
+            persistedEvents);
     }
 
     private static async Task<CampaignIdentity> InsertSnapshotAsync(
@@ -821,6 +875,82 @@ public sealed class CampaignService(
                 where id = @CampaignTurnId
                 """,
                 new { CampaignTurnId = campaignTurnId, Actor },
+                transaction,
+                cancellationToken: cancellationToken));
+    }
+
+    private static async Task InsertGameEventAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        long campaignId,
+        long campaignTurnId,
+        GameEvent gameEvent,
+        CancellationToken cancellationToken)
+    {
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                """
+                insert into public.campaign_event (
+                    campaign_id,
+                    campaign_turn_id,
+                    event_sequence,
+                    event_type,
+                    event_scope,
+                    side,
+                    region_id,
+                    unit_id,
+                    summary,
+                    event_payload,
+                    created_by,
+                    edited_by
+                )
+                values (
+                    @CampaignId,
+                    @CampaignTurnId,
+                    @EventSequence,
+                    @EventType,
+                    @EventScope,
+                    @Side,
+                    @RegionId,
+                    @UnitId,
+                    @Summary,
+                    cast(@EventPayload as jsonb),
+                    @Actor,
+                    @Actor
+                )
+                """,
+                new
+                {
+                    CampaignId = campaignId,
+                    CampaignTurnId = campaignTurnId,
+                    EventSequence = gameEvent.Sequence,
+                    EventType = gameEvent.EventType.ToString(),
+                    EventScope = gameEvent.EventScope.ToString(),
+                    Side = gameEvent.Side?.ToString(),
+                    gameEvent.RegionId,
+                    gameEvent.UnitId,
+                    gameEvent.Summary,
+                    EventPayload = JsonSerializer.Serialize(gameEvent.Payload, ApiJson.SerializerOptions),
+                    Actor
+                },
+                transaction,
+                cancellationToken: cancellationToken));
+    }
+
+    private static async Task<int> LoadNextEventSequenceAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        long campaignTurnId,
+        CancellationToken cancellationToken)
+    {
+        return await connection.QuerySingleAsync<int>(
+            new CommandDefinition(
+                """
+                select coalesce(max(event_sequence), 0) + 1
+                from public.campaign_event
+                where campaign_turn_id = @CampaignTurnId
+                """,
+                new { CampaignTurnId = campaignTurnId },
                 transaction,
                 cancellationToken: cancellationToken));
     }

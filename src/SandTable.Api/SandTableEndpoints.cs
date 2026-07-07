@@ -1,3 +1,5 @@
+using SandTable.Engine;
+
 namespace SandTable.Api;
 
 public static class SandTableEndpoints
@@ -46,6 +48,24 @@ public static class SandTableEndpoints
         {
             var result = await service.SubmitCommandsAsync(campaignUid, request, cancellationToken);
             return result is null ? Results.NotFound() : Results.Ok(result);
+        });
+
+        group.MapPost("/campaigns/{campaignUid:guid}/tensions/{cardId}/choose", async (
+            Guid campaignUid,
+            string cardId,
+            ChooseTensionOptionRequest request,
+            CampaignService service,
+            CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                var result = await service.ChooseTensionOptionAsync(campaignUid, cardId, request, cancellationToken);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (TensionChoiceValidationException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
         });
 
         group.MapPost("/campaigns/{campaignUid:guid}/resolve-turn", async (

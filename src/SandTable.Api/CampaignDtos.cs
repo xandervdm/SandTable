@@ -16,6 +16,8 @@ public sealed record SubmitCommandRequest(
     string? RegionId,
     string? TargetRegionId);
 
+public sealed record ChooseTensionOptionRequest(string OptionId);
+
 public sealed record CampaignSummaryResponse(
     Guid CampaignUid,
     string Name,
@@ -57,4 +59,12 @@ public sealed record ResolveTurnResponse(
     bool IsComplete,
     string? Result,
     string Summary,
+    IReadOnlyList<GameEvent> Events);
+
+public sealed record ChooseTensionOptionResponse(
+    Guid CampaignUid,
+    Guid CampaignTurnUid,
+    Guid SnapshotUid,
+    TensionDecision Decision,
+    GameState State,
     IReadOnlyList<GameEvent> Events);

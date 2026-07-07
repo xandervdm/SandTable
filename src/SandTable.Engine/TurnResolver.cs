@@ -1,12 +1,16 @@
 namespace SandTable.Engine;
 
-public sealed class TurnResolver
+public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
 {
+    private const int MaximumActiveTensionCards = 2;
+    private readonly ITensionGenerator _tensionGenerator = tensionGenerator ?? new BasicTensionGenerator();
+
     public TurnResolution Resolve(
         GameState startingState,
         IReadOnlyCollection<SubmittedCommand> humanCommands,
         IReadOnlyCollection<SubmittedCommand> aiCommands,
-        int randomSeed)
+        int randomSeed,
+        TensionCardCatalog? tensionCards = null)
     {
         if (startingState.IsComplete)
         {
@@ -50,7 +54,8 @@ public sealed class TurnResolver
             Regions = regions.Values.OrderBy(region => region.Id, StringComparer.Ordinal).ToArray(),
             Units = units.Values.OrderBy(unit => unit.Id, StringComparer.Ordinal).ToArray(),
             IsComplete = result is not null,
-            Result = result
+            Result = result,
+            CampaignModifiers = AgeCampaignModifiers(startingState.CampaignModifiers)
         };
 
         if (result is not null)
@@ -64,6 +69,44 @@ public sealed class TurnResolver
                 null,
                 $"Campaign ended with {result}.",
                 new Dictionary<string, object?> { ["result"] = result }));
+        }
+        else
+        {
+            var generatedTensions = _tensionGenerator.Generate(
+                nextState,
+                tensionCards ?? new TensionCardCatalog(Array.Empty<TensionCardDefinition>()),
+                randomSeed,
+                MaximumActiveTensionCards);
+            if (generatedTensions.Count > 0 || nextState.ActiveTensions.Count > MaximumActiveTensionCards)
+            {
+                nextState = nextState with
+                {
+                    ActiveTensions = nextState.ActiveTensions
+                        .Concat(generatedTensions)
+                        .GroupBy(card => card.Id, StringComparer.Ordinal)
+                        .Select(group => group.First())
+                        .Take(MaximumActiveTensionCards)
+                        .OrderBy(card => card.Id, StringComparer.Ordinal)
+                        .ToArray()
+                };
+
+                foreach (var tension in generatedTensions)
+                {
+                    events.Add(new GameEvent(
+                        events.Count + 1,
+                        GameEventType.System,
+                        GameEventScope.Campaign,
+                        startingState.PlayerSide,
+                        null,
+                        null,
+                        $"Operational opportunity emerged: {tension.Title}.",
+                        new Dictionary<string, object?>
+                        {
+                            ["cardId"] = tension.Id,
+                            ["category"] = tension.Category.ToString()
+                        }));
+                }
+            }
         }
 
         return new TurnResolution(
@@ -349,11 +392,22 @@ public sealed class TurnResolver
         return startingState.TurnNumber >= startingState.MaxTurns ? "Defeat" : null;
     }
 
+    private static IReadOnlyList<CampaignModifier> AgeCampaignModifiers(IReadOnlyList<CampaignModifier> modifiers)
+    {
+        return modifiers
+            .Select(modifier => modifier with { RemainingTurns = modifier.RemainingTurns - 1 })
+            .Where(modifier => modifier.RemainingTurns > 0)
+            .OrderBy(modifier => modifier.Id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     private static string BuildSummary(GameState startingState, GameState nextState, IReadOnlyList<GameEvent> events)
     {
         var battles = events.Count(gameEvent => gameEvent.EventType == GameEventType.Battle);
         var movements = events.Count(gameEvent => gameEvent.EventType == GameEventType.Movement);
+        var tensions = nextState.ActiveTensions.Count;
         var ending = nextState.IsComplete ? $" Campaign result: {nextState.Result}." : string.Empty;
-        return $"Turn {startingState.TurnNumber} resolved: {battles} battles, {movements} movements.{ending}";
+        var opportunities = tensions > 0 ? $" {tensions} operational opportunities active." : string.Empty;
+        return $"Turn {startingState.TurnNumber} resolved: {battles} battles, {movements} movements.{opportunities}{ending}";
     }
 }

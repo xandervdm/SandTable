@@ -1,0 +1,353 @@
+{
+  "cards": [
+    {
+      "id": "overextended-armour",
+      "title": "Overextended Armour",
+      "description": "{unit.name} has outrun the supply columns, but the enemy line is still unsettled.",
+      "category": "Operational",
+      "trigger": "ArmourOverextended",
+      "targeting": {
+        "unitSelector": "playerArmourLowestSupply"
+      },
+      "options": [
+        {
+          "id": "push-forward",
+          "label": "Push Forward",
+          "description": "Exploit momentum at the cost of fuel and crew strain.",
+          "effects": [
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Attack",
+              "amount": 1,
+              "description": "{unit.name} gains +1 attack."
+            },
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Supply",
+              "amount": -2,
+              "description": "{unit.name} loses 2 supply."
+            },
+            {
+              "effectType": "addCampaignModifier",
+              "modifierId": "armour-tempo",
+              "name": "Armour Tempo",
+              "durationTurns": 1,
+              "values": {
+                "attack": 1,
+                "supplyRisk": 2
+              },
+              "description": "Armour tempo recorded for this turn."
+            }
+          ]
+        },
+        {
+          "id": "consolidate",
+          "label": "Consolidate",
+          "description": "Restore the supply line, accepting a slower operational tempo.",
+          "effects": [
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Supply",
+              "amount": 2,
+              "description": "{unit.name} gains 2 supply."
+            },
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Movement",
+              "amount": -1,
+              "description": "{unit.name} loses 1 movement."
+            },
+            {
+              "effectType": "addResource",
+              "resource": "Supplies",
+              "amount": 1,
+              "description": "Supplies increase by 1."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hold-the-line",
+      "title": "Hold The Line",
+      "description": "{region.name} can be turned into a stronger position, but reserves are thin.",
+      "category": "Operational",
+      "trigger": "DefensivePressure",
+      "targeting": {
+        "unitSelector": "playerLineLowestDefence",
+        "regionSelector": "playerFrontlineHighestVictory"
+      },
+      "options": [
+        {
+          "id": "dig-in",
+          "label": "Dig In",
+          "description": "Commit engineers and ammunition to harden the line.",
+          "effects": [
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Defence",
+              "amount": 2,
+              "description": "{unit.name} gains +2 defence."
+            },
+            {
+              "effectType": "addResource",
+              "resource": "CommandPoints",
+              "amount": -1,
+              "description": "Command points decrease by 1."
+            },
+            {
+              "effectType": "modifyRegion",
+              "regionSelector": "region",
+              "supplyValueDelta": 0,
+              "addFeature": "PreparedPositions",
+              "description": "{region.name} gains prepared positions."
+            }
+          ]
+        },
+        {
+          "id": "elastic-defence",
+          "label": "Elastic Defence",
+          "description": "Preserve reserves and trade certainty for flexibility.",
+          "effects": [
+            {
+              "effectType": "addResource",
+              "resource": "Fuel",
+              "amount": 2,
+              "description": "Fuel increases by 2."
+            },
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Morale",
+              "amount": -1,
+              "description": "{unit.name} loses 1 morale."
+            },
+            {
+              "effectType": "addCampaignModifier",
+              "modifierId": "elastic-defence",
+              "name": "Elastic Defence",
+              "durationTurns": 1,
+              "values": {
+                "fuelReserve": 2,
+                "moraleRisk": 1
+              },
+              "description": "Elastic defence posture recorded."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sandstorm-forecast",
+      "title": "Sandstorm Forecast",
+      "description": "Weather reports warn of a sandstorm window that could hide movement or disrupt coordination.",
+      "category": "Weather",
+      "trigger": "WeatherForecast",
+      "targeting": {
+        "unitSelector": "playerAirOrArmourLowestMorale"
+      },
+      "options": [
+        {
+          "id": "move-under-cover",
+          "label": "Move Under Cover",
+          "description": "Use the storm to reposition, accepting confusion in the ranks.",
+          "effects": [
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Movement",
+              "amount": 1,
+              "description": "{unit.name} gains +1 movement."
+            },
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Morale",
+              "amount": -1,
+              "description": "{unit.name} loses 1 morale."
+            },
+            {
+              "effectType": "addGameEvent",
+              "summary": "A sandstorm masks friendly movement.",
+              "eventType": "Scenario",
+              "eventScope": "Campaign",
+              "sideSelector": "unit",
+              "unitSelector": "unit",
+              "description": "A sandstorm movement event is recorded."
+            }
+          ]
+        },
+        {
+          "id": "wait-it-out",
+          "label": "Wait It Out",
+          "description": "Avoid weather losses and spend the pause repairing supply discipline.",
+          "effects": [
+            {
+              "effectType": "addResource",
+              "resource": "Supplies",
+              "amount": 2,
+              "description": "Supplies increase by 2."
+            },
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "unit",
+              "stat": "Movement",
+              "amount": -1,
+              "description": "{unit.name} loses 1 movement."
+            },
+            {
+              "effectType": "addCampaignModifier",
+              "modifierId": "weather-caution",
+              "name": "Weather Caution",
+              "durationTurns": 1,
+              "values": {
+                "supplyDiscipline": 2,
+                "tempoCost": 1
+              },
+              "description": "Weather caution recorded."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "political-pressure",
+      "title": "Political Pressure",
+      "description": "Command expects visible progress, but operational realities are less tidy than the communiques.",
+      "category": "Political",
+      "trigger": "PoliticalPressure",
+      "targeting": {},
+      "options": [
+        {
+          "id": "promise-results",
+          "label": "Promise Results",
+          "description": "Gain command latitude by committing to a bolder timetable.",
+          "effects": [
+            {
+              "effectType": "addResource",
+              "resource": "CommandPoints",
+              "amount": 2,
+              "description": "Command points increase by 2."
+            },
+            {
+              "effectType": "addResource",
+              "resource": "Manpower",
+              "amount": -1,
+              "description": "Manpower decreases by 1."
+            },
+            {
+              "effectType": "addCampaignModifier",
+              "modifierId": "political-deadline",
+              "name": "Political Deadline",
+              "durationTurns": 2,
+              "values": {
+                "commandPoints": 2,
+                "manpowerRisk": 1
+              },
+              "description": "Political deadline recorded."
+            }
+          ]
+        },
+        {
+          "id": "manage-expectations",
+          "label": "Manage Expectations",
+          "description": "Spend influence now to keep strategic reserves intact.",
+          "effects": [
+            {
+              "effectType": "addResource",
+              "resource": "CommandPoints",
+              "amount": -1,
+              "description": "Command points decrease by 1."
+            },
+            {
+              "effectType": "addResource",
+              "resource": "Manpower",
+              "amount": 2,
+              "description": "Manpower increases by 2."
+            },
+            {
+              "effectType": "addResource",
+              "resource": "Supplies",
+              "amount": 1,
+              "description": "Supplies increase by 1."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "enemy-fuel-convoy-spotted",
+      "title": "Enemy Fuel Convoy Spotted",
+      "description": "Recon has located a fuel convoy supporting {enemyUnit.name}.",
+      "category": "Intelligence",
+      "trigger": "EnemyConvoy",
+      "targeting": {
+        "enemyUnitSelector": "enemyHighestSupply"
+      },
+      "options": [
+        {
+          "id": "raid-convoy",
+          "label": "Raid Convoy",
+          "description": "Strike quickly for fuel, risking a scattered follow-up.",
+          "effects": [
+            {
+              "effectType": "addResource",
+              "resource": "Fuel",
+              "amount": 3,
+              "description": "Fuel increases by 3."
+            },
+            {
+              "effectType": "addResource",
+              "resource": "CommandPoints",
+              "amount": -1,
+              "description": "Command points decrease by 1."
+            },
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "enemyUnit",
+              "stat": "Supply",
+              "amount": -2,
+              "description": "{enemyUnit.name} loses 2 supply."
+            }
+          ]
+        },
+        {
+          "id": "shadow-convoy",
+          "label": "Shadow Convoy",
+          "description": "Preserve surprise and turn the sighting into better intelligence.",
+          "effects": [
+            {
+              "effectType": "addResource",
+              "resource": "CommandPoints",
+              "amount": 1,
+              "description": "Command points increase by 1."
+            },
+            {
+              "effectType": "modifyUnitStat",
+              "unitSelector": "enemyUnit",
+              "stat": "Morale",
+              "amount": -1,
+              "description": "{enemyUnit.name} loses 1 morale."
+            },
+            {
+              "effectType": "addCampaignModifier",
+              "modifierId": "convoy-intelligence",
+              "name": "Convoy Intelligence",
+              "durationTurns": 2,
+              "values": {
+                "recon": 1,
+                "enemyMoralePressure": 1
+              },
+              "description": "Convoy intelligence recorded."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

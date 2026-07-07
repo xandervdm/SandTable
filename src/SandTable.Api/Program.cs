@@ -14,6 +14,9 @@ builder.Services.AddSingleton<GameContentRepository>();
 builder.Services.AddSingleton<DevPlayerBootstrapper>();
 builder.Services.AddSingleton<ScenarioFactory>();
 builder.Services.AddSingleton<BasicAiPlanner>();
+builder.Services.AddSingleton<IGameEffectApplier, GameEffectApplier>();
+builder.Services.AddSingleton<TensionChoiceResolver>();
+builder.Services.AddSingleton<ITensionGenerator, BasicTensionGenerator>();
 builder.Services.AddSingleton<TurnResolver>();
 builder.Services.AddScoped<CampaignService>();
 

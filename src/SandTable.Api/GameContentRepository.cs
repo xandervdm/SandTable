@@ -8,7 +8,8 @@ public sealed record GameContentBundle(
     ScenarioDefinition Scenario,
     UnitCatalog Units,
     DoctrineCatalog Doctrines,
-    ScenarioEventCatalog Events);
+    ScenarioEventCatalog Events,
+    TensionCardCatalog TensionCards);
 
 public sealed class GameContentRepository(IWebHostEnvironment environment, IConfiguration configuration)
 {
@@ -28,8 +29,9 @@ public sealed class GameContentRepository(IWebHostEnvironment environment, IConf
         var units = await ReadJsonAsync<UnitCatalog>(Path.Combine(theatrePath, "units.json"), cancellationToken);
         var doctrines = await ReadJsonAsync<DoctrineCatalog>(Path.Combine(theatrePath, "doctrines.json"), cancellationToken);
         var events = await ReadJsonAsync<ScenarioEventCatalog>(Path.Combine(theatrePath, "events.json"), cancellationToken);
+        var tensionCards = await ReadJsonAsync<TensionCardCatalog>(Path.Combine(theatrePath, "tension-cards.json"), cancellationToken);
 
-        return new GameContentBundle(map, scenario, units, doctrines, events);
+        return new GameContentBundle(map, scenario, units, doctrines, events, tensionCards);
     }
 
     private string ResolveTheatrePath(string theatreId)
