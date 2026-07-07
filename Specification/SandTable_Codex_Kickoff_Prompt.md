@@ -54,7 +54,7 @@ LLM/AI coaching, or a 3D/isometric renderer in V1.
 -   .NET solution namespace: `SandTable`
 -   Entity Framework Core
 -   PostgreSQL
--   OpenIddict-ready authentication
+-   OpenIddict authentication before V1 staging deployment
 -   REST API
 
 ## Game Engine
@@ -143,6 +143,7 @@ SandTable/
 -   Command profile
 -   Lightweight campaign record
 -   Post-game debrief
+-   Full OpenIddict authentication before staging deployment
 
 V1 should keep career tracking small: enough to show completed campaigns,
 basic win/loss history, and a simple post-game summary. Deeper career
@@ -165,6 +166,14 @@ Battle Reports
 ↓
 Next Turn
 ```
+
+Turn resolution is simultaneous. During planning, the player submits intent
+without knowing the enemy's current-turn orders. When the player commits,
+the AI plans from the same starting state, then the engine resolves player
+commands, AI commands, movement, combat, supply, events, and victory checks
+as one combined turn. This should allow unforeseen clashes, contested moves,
+failed attacks, intercepted advances, and other surprises that make the turn
+feel like a real command decision rather than an alternating board-game move.
 
 ------------------------------------------------------------------------
 
@@ -521,9 +530,11 @@ Entities:
 
 Store snapshots as JSON.
 
-Authentication may start with an implicit development user. Keep the data
-model shaped for future real users, but do not implement the interactive
-OpenIddict login/consent flow in V1 unless explicitly requested.
+Authentication may start with an implicit development user during early V1
+development so gameplay, persistence, and UI can move quickly. Before V1 is
+deployed to staging, replace the implicit user path with full OpenIddict
+authentication and real user ownership for profiles, campaigns, snapshots,
+commands, events, and career records.
 
 ------------------------------------------------------------------------
 
@@ -663,9 +674,9 @@ Select Unit
 ↓
 Issue Order
 ↓
-Resolve Turn
+Commit Orders
 ↓
-AI Responds
+Resolve Player + AI Orders Simultaneously
 ↓
 Save Snapshot
 ↓
