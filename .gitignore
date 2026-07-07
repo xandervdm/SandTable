@@ -5,3 +5,4 @@ obj/
 .vscode/
 .dotnet_cli_home/
 TestResults/
+*.csproj.user
