@@ -1,0 +1,6 @@
+@SandTable.Api_HostAddress = http://localhost:5171
+
+GET {{SandTable.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

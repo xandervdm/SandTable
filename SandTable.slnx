@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SandTable.Api/SandTable.Api.csproj" />
+    <Project Path="src/SandTable.Engine/SandTable.Engine.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SandTable.Api.Tests/SandTable.Api.Tests.csproj" />
+    <Project Path="tests/SandTable.Engine.Tests/SandTable.Engine.Tests.csproj" />
+  </Folder>
+</Solution>

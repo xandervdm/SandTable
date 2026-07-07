@@ -1,0 +1,7 @@
+bin/
+obj/
+.vs/
+.idea/
+.vscode/
+.dotnet_cli_home/
+TestResults/
