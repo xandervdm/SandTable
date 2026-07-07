@@ -83,6 +83,12 @@ Manual samples live in:
 
 - `src/SandTable.Api/SandTable.Api.http`
 
+Dev database smoke test:
+
+- `scripts/smoke-dev-api.ps1`
+- Requires `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.
+- Builds with temp artifacts, starts the API on localhost, creates a campaign, submits a command, resolves a turn, and chooses a generated tension option when available.
+
 ## Strategic Tension
 
 Strategic Tension Points are also presented as Operational Opportunities.

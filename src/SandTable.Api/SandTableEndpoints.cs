@@ -46,8 +46,15 @@ public static class SandTableEndpoints
             CampaignService service,
             CancellationToken cancellationToken) =>
         {
-            var result = await service.SubmitCommandsAsync(campaignUid, request, cancellationToken);
-            return result is null ? Results.NotFound() : Results.Ok(result);
+            try
+            {
+                var result = await service.SubmitCommandsAsync(campaignUid, request, cancellationToken);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ApiValidationException exception)
+            {
+                return ApiProblemResults.From(exception);
+            }
         });
 
         group.MapPost("/campaigns/{campaignUid:guid}/tensions/{cardId}/choose", async (
@@ -62,9 +69,13 @@ public static class SandTableEndpoints
                 var result = await service.ChooseTensionOptionAsync(campaignUid, cardId, request, cancellationToken);
                 return result is null ? Results.NotFound() : Results.Ok(result);
             }
+            catch (ApiValidationException exception)
+            {
+                return ApiProblemResults.From(exception);
+            }
             catch (TensionChoiceValidationException exception)
             {
-                return Results.BadRequest(new { error = exception.Message });
+                return ApiProblemResults.From(exception);
             }
         });
 
@@ -73,8 +84,15 @@ public static class SandTableEndpoints
             CampaignService service,
             CancellationToken cancellationToken) =>
         {
-            var result = await service.ResolveTurnAsync(campaignUid, cancellationToken);
-            return result is null ? Results.NotFound() : Results.Ok(result);
+            try
+            {
+                var result = await service.ResolveTurnAsync(campaignUid, cancellationToken);
+                return result is null ? Results.NotFound() : Results.Ok(result);
+            }
+            catch (ApiValidationException exception)
+            {
+                return ApiProblemResults.From(exception);
+            }
         });
 
         return app;

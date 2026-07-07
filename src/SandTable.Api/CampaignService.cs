@@ -221,11 +221,6 @@ public sealed class CampaignService(
         SubmitCommandsRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.Commands.Count == 0)
-        {
-            throw new InvalidOperationException("At least one command is required.");
-        }
-
         await using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -237,7 +232,16 @@ public sealed class CampaignService(
         }
 
         var turn = await LoadCurrentPlanningTurnAsync(connection, transaction, campaign.Id, campaign.CurrentTurnNumber, cancellationToken);
+        if (turn is null)
+        {
+            throw new ApiValidationException(
+                "Invalid turn status",
+                $"Campaign '{campaignUid}' is not accepting commands for turn {campaign.CurrentTurnNumber}.");
+        }
+
         var snapshot = await LoadLatestSnapshotAsync(connection, transaction, campaign.Id, cancellationToken);
+        CommandValidator.ValidateSubmitCommands(snapshot.State, Enum.Parse<Side>(campaign.PlayerSide), request);
+
         var nextSequence = await connection.QuerySingleAsync<int>(
             new CommandDefinition(
                 """
@@ -332,6 +336,13 @@ public sealed class CampaignService(
         ChooseTensionOptionRequest request,
         CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.OptionId))
+        {
+            throw new ApiValidationException(
+                "Invalid tension choice",
+                "A tension option id is required.");
+        }
+
         await using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -343,6 +354,13 @@ public sealed class CampaignService(
         }
 
         var turn = await LoadCurrentPlanningTurnAsync(connection, transaction, campaign.Id, campaign.CurrentTurnNumber, cancellationToken);
+        if (turn is null)
+        {
+            throw new ApiValidationException(
+                "Invalid turn status",
+                $"Campaign '{campaignUid}' is not accepting operational opportunity choices for turn {campaign.CurrentTurnNumber}.");
+        }
+
         var snapshot = await LoadLatestSnapshotAsync(connection, transaction, campaign.Id, cancellationToken);
         var nextEventSequence = await LoadNextEventSequenceAsync(connection, transaction, turn.Id, cancellationToken);
 
@@ -428,6 +446,13 @@ public sealed class CampaignService(
         }
 
         var turn = await LoadCurrentTurnForResolutionAsync(connection, transaction, campaign.Id, campaign.CurrentTurnNumber, cancellationToken);
+        if (turn is null)
+        {
+            throw new ApiValidationException(
+                "Invalid turn status",
+                $"Campaign '{campaignUid}' does not have a planning or committed turn {campaign.CurrentTurnNumber} to resolve.");
+        }
+
         var snapshot = await LoadLatestSnapshotAsync(connection, transaction, campaign.Id, cancellationToken);
         var content = await contentRepository.LoadAsync(campaign.TheatreId, campaign.ScenarioId, cancellationToken);
         var humanCommands = await LoadCommandsAsync(connection, transaction, turn.Id, "Human", cancellationToken);
@@ -725,14 +750,14 @@ public sealed class CampaignService(
         return row.ToSnapshotRow();
     }
 
-    private static async Task<CampaignTurnRow> LoadCurrentPlanningTurnAsync(
+    private static async Task<CampaignTurnRow?> LoadCurrentPlanningTurnAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         long campaignId,
         int currentTurnNumber,
         CancellationToken cancellationToken)
     {
-        return await connection.QuerySingleAsync<CampaignTurnRow>(
+        return await connection.QuerySingleOrDefaultAsync<CampaignTurnRow>(
             new CommandDefinition(
                 """
                 select id, uid, turn_number as TurnNumber, random_seed as RandomSeed, status
@@ -747,14 +772,14 @@ public sealed class CampaignService(
                 cancellationToken: cancellationToken));
     }
 
-    private static async Task<CampaignTurnRow> LoadCurrentTurnForResolutionAsync(
+    private static async Task<CampaignTurnRow?> LoadCurrentTurnForResolutionAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         long campaignId,
         int currentTurnNumber,
         CancellationToken cancellationToken)
     {
-        return await connection.QuerySingleAsync<CampaignTurnRow>(
+        return await connection.QuerySingleOrDefaultAsync<CampaignTurnRow>(
             new CommandDefinition(
                 """
                 select id, uid, turn_number as TurnNumber, random_seed as RandomSeed, status

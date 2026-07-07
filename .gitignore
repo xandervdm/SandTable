@@ -4,5 +4,6 @@ obj/
 .idea/
 .vscode/
 .dotnet_cli_home/
+.dotnet_cli_home_build/
 TestResults/
 *.csproj.user

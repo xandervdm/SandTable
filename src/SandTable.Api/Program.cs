@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics;
+using Npgsql;
 using SandTable.Api;
 using SandTable.Engine;
 
@@ -21,6 +23,29 @@ builder.Services.AddSingleton<TurnResolver>();
 builder.Services.AddScoped<CampaignService>();
 
 var app = builder.Build();
+
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        var exception = context.Features.Get<IExceptionHandlerPathFeature>()?.Error;
+        if (exception is NpgsqlException)
+        {
+            await Results.Problem(
+                    title: "Database unavailable",
+                    detail: "SandTable could not reach its PostgreSQL database.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable)
+                .ExecuteAsync(context);
+            return;
+        }
+
+        await Results.Problem(
+                title: "Unexpected API error",
+                detail: "SandTable could not complete the request.",
+                statusCode: StatusCodes.Status500InternalServerError)
+            .ExecuteAsync(context);
+    });
+});
 
 app.UseHttpsRedirection();
 
