@@ -26,7 +26,9 @@ building a command career over time.
 -   AI coaching
 -   Optional 3D/isometric renderer
 
-**Do not build these in V1.**
+**Do not build these in V1.** Create clear boundaries only. In particular,
+do not build Electron, Steam packaging, async multiplayer, cloud saves,
+LLM/AI coaching, or a 3D/isometric renderer in V1.
 
 ------------------------------------------------------------------------
 
@@ -77,6 +79,20 @@ GameState + PlayerCommands + RandomSeed
 GameState + GameEvents
 ```
 
+V1 turn resolution should make enemy planning explicit:
+
+``` text
+GameState + HumanCommands + IAiPlanner + RandomSeed
+            ↓
+TurnResolution
+            ↓
+Next GameState + GameEvents
+```
+
+`TurnResolution` should contain the next state, accepted/rejected commands,
+AI commands, battle events, supply events, victory events, and a readable
+turn summary.
+
 The same engine should eventually be usable:
 
 -   Server
@@ -125,8 +141,12 @@ SandTable/
 -   Save/resume
 -   Basic AI
 -   Command profile
--   Career statistics
+-   Lightweight campaign record
 -   Post-game debrief
+
+V1 should keep career tracking small: enough to show completed campaigns,
+basic win/loss history, and a simple post-game summary. Deeper career
+analytics and coaching remain later goals.
 
 ------------------------------------------------------------------------
 
@@ -178,6 +198,165 @@ Features:
 -   City
 -   Supply Depot
 -   Fortified
+
+------------------------------------------------------------------------
+
+# Content Contracts
+
+Content should be data-driven JSON loaded from `content/theatres/north-africa`.
+Keep the schema simple, explicit, and friendly to manual editing.
+
+## ID conventions
+
+-   Use stable kebab-case string IDs, such as `tobruk`, `15th-panzer`,
+    and `north-africa-1942`.
+-   Do not use display names as foreign keys.
+-   Every referenced region, unit, doctrine, event, or scenario ID must
+    exist in the same content set.
+
+## `map.json`
+
+Define the theatre map and region graph.
+
+``` json
+{
+  "theatreId": "north-africa",
+  "name": "North Africa",
+  "coordinateSystem": {
+    "width": 1000,
+    "height": 600
+  },
+  "regions": [
+    {
+      "id": "tobruk",
+      "name": "Tobruk",
+      "position": { "x": 720, "y": 310 },
+      "terrain": "Coast",
+      "owner": "Allies",
+      "victoryPoints": 8,
+      "supplyValue": 2,
+      "features": ["Port", "Fortified"],
+      "adjacentRegionIds": ["gazala", "benghazi", "el-alamein"]
+    }
+  ],
+  "routes": [
+    {
+      "fromRegionId": "gazala",
+      "toRegionId": "tobruk",
+      "routeType": "CoastalRoad"
+    }
+  ]
+}
+```
+
+Validation expectations:
+
+-   Region positions are within the declared coordinate system.
+-   Adjacency is symmetrical, or the loader normalizes it and reports errors.
+-   Routes only connect adjacent regions.
+-   Owners are `Axis`, `Allies`, or `Neutral`.
+
+## `scenario-1942.json`
+
+Define the playable scenario setup.
+
+``` json
+{
+  "scenarioId": "north-africa-1942",
+  "theatreId": "north-africa",
+  "name": "North Africa Campaign - 1942",
+  "startDate": "1942-06-12",
+  "maxTurns": 15,
+  "defaultSide": "Axis",
+  "startingResources": {
+    "supplies": 1200,
+    "manpower": 850,
+    "fuel": 430,
+    "industry": 210,
+    "commandPoints": 3
+  },
+  "victoryConditions": [
+    {
+      "type": "ControlRegion",
+      "regionId": "alexandria",
+      "requiredOwner": "Axis"
+    }
+  ],
+  "startingUnitIds": ["15th-panzer"]
+}
+```
+
+## `units.json`
+
+Define reusable starting units.
+
+``` json
+{
+  "units": [
+    {
+      "id": "15th-panzer",
+      "name": "15th Panzer Division",
+      "side": "Axis",
+      "type": "Armour",
+      "regionId": "tripoli",
+      "strength": 10,
+      "maxStrength": 10,
+      "movement": 3,
+      "attack": 6,
+      "defence": 4,
+      "supply": 8,
+      "morale": 8,
+      "experience": 6,
+      "status": "Ready"
+    }
+  ]
+}
+```
+
+## `doctrines.json`
+
+Define small modifiers only. Avoid doctrine rules that require special-case
+UI or complex simulations in V1.
+
+``` json
+{
+  "doctrines": [
+    {
+      "id": "mobile-warfare",
+      "name": "Mobile Warfare",
+      "modifiers": {
+        "armourAttackBonus": 1,
+        "fuelConsumptionPenalty": 1
+      }
+    }
+  ]
+}
+```
+
+## `events.json`
+
+Define scenario events that the engine can evaluate deterministically.
+
+``` json
+{
+  "events": [
+    {
+      "id": "enemy-reinforcements-el-alamein",
+      "trigger": { "turn": 6 },
+      "effect": {
+        "type": "AddUnit",
+        "unitId": "allied-armoured-reserve",
+        "regionId": "el-alamein"
+      },
+      "message": "Enemy reinforcements are arriving near El Alamein."
+    }
+  ]
+}
+```
+
+Content loaders should fail fast with clear validation errors during
+development. Tests should cover content loading, graph validity, scenario
+startup, and at least one turn resolution using the seeded content.
 
 ------------------------------------------------------------------------
 
@@ -299,6 +478,8 @@ Doctrines:
 
 # Career Analytics
 
+V1 should track lightweight campaign history only.
+
 Track:
 
 -   Campaign
@@ -319,6 +500,9 @@ Display:
 -   Weaknesses
 -   Recommendations
 
+Do not build deep trend analytics, cross-campaign coaching, or LLM-generated
+advice in V1. A simple deterministic recommendation is enough.
+
 ------------------------------------------------------------------------
 
 # Database
@@ -337,6 +521,10 @@ Entities:
 
 Store snapshots as JSON.
 
+Authentication may start with an implicit development user. Keep the data
+model shaped for future real users, but do not implement the interactive
+OpenIddict login/consent flow in V1 unless explicitly requested.
+
 ------------------------------------------------------------------------
 
 # API
@@ -344,14 +532,21 @@ Store snapshots as JSON.
 ``` text
 GET    /api/health
 POST   /api/campaigns
+GET    /api/campaigns
 GET    /api/campaigns/{id}
 POST   /api/campaigns/{id}/commands
 POST   /api/campaigns/{id}/resolve-turn
 POST   /api/campaigns/{id}/autosave
+GET    /api/campaigns/{id}/snapshot
+PUT    /api/campaigns/{id}/snapshot
 GET    /api/profile
 PUT    /api/profile
 GET    /api/career/summary
 ```
+
+For V1, save/load can be implemented through campaign snapshots. Resolving
+a turn should persist a snapshot, and autosave/manual save should write the
+latest command/profile/UI-safe campaign state without changing engine rules.
 
 ------------------------------------------------------------------------
 
@@ -377,6 +572,24 @@ Centre: - Map - Units - Supply - Front line
 Right: - Events - Command log
 
 Bottom: - Orders - Reinforcements - Save/Load
+
+Use `Specification/SandTable-Mockup.png` as the V1 visual direction, but
+treat it as a functional wireframe rather than a pixel-perfect target.
+
+V1 UI acceptance checklist:
+
+-   Show campaign name, scenario year, turn number, and current date.
+-   Show supplies, manpower, fuel, industry, and command points in the top bar.
+-   Show objective, weather, selected unit, unit stats, and terrain guide.
+-   Render a stylised North Africa region map with routes, ownership,
+    unit counters, supply/front indicators, and a compact legend.
+-   Show turn summary, events, and command log in a right-side panel.
+-   Show available orders, available units, reinforcements, save/load, and
+    command profile access.
+-   Include a small theatre overview/minimap if it can be done cheaply.
+-   Keep the visual tone close to a WWII command table: dark metal UI,
+    parchment map, restrained military colours, readable counters, and
+    high contrast for selected units and legal actions.
 
 ------------------------------------------------------------------------
 
