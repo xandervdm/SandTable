@@ -88,13 +88,41 @@ public static class CommandValidator
                 AddError(errors, $"{prefix}.targetRegionId", $"Target region '{command.TargetRegionId}' does not exist in the latest campaign state.");
             }
 
-            if (command.CommandType is OrderType.Move or OrderType.Attack)
-            {
-                ValidateMoveOrAttackTarget(errors, prefix, command, unit, regions);
-            }
+            ValidateCommandTypeRules(errors, prefix, command, unit, state, regions);
         }
 
         ThrowIfInvalid(errors);
+    }
+
+    private static void ValidateCommandTypeRules(
+        Dictionary<string, List<string>> errors,
+        string prefix,
+        SubmitCommandRequest command,
+        UnitState? unit,
+        GameState state,
+        IReadOnlyDictionary<string, RegionState> regions)
+    {
+        switch (command.CommandType)
+        {
+            case OrderType.Move:
+                ValidateMoveOrAttackTarget(errors, prefix, command, unit, regions);
+                ValidateMoveDestination(errors, prefix, command, unit, state);
+                break;
+
+            case OrderType.Attack:
+                ValidateMoveOrAttackTarget(errors, prefix, command, unit, regions);
+                break;
+
+            case OrderType.Recon:
+            case OrderType.Support:
+                ValidateOptionalNearbyTarget(errors, prefix, command, unit, regions);
+                break;
+
+            case OrderType.HoldPosition:
+            case OrderType.Resupply:
+                ValidateNoTarget(errors, prefix, command);
+                break;
+        }
     }
 
     private static void ValidateMoveOrAttackTarget(
@@ -124,6 +152,74 @@ public static class CommandValidator
                 $"{prefix}.targetRegionId",
                 $"Target region '{targetRegion.Id}' is not adjacent to unit '{unit.Id}' in '{currentRegion.Id}'.");
         }
+    }
+
+    private static void ValidateMoveDestination(
+        Dictionary<string, List<string>> errors,
+        string prefix,
+        SubmitCommandRequest command,
+        UnitState? unit,
+        GameState state)
+    {
+        if (unit is null || string.IsNullOrWhiteSpace(command.TargetRegionId))
+        {
+            return;
+        }
+
+        var occupiedByEnemy = state.Units.Any(other =>
+            other.Side != unit.Side
+            && other.Side != Side.Neutral
+            && other.Status != UnitStatus.Destroyed
+            && string.Equals(other.RegionId, command.TargetRegionId, StringComparison.Ordinal));
+
+        if (occupiedByEnemy)
+        {
+            AddError(
+                errors,
+                $"{prefix}.targetRegionId",
+                $"Target region '{command.TargetRegionId}' is occupied by enemy forces. Use Attack instead.");
+        }
+    }
+
+    private static void ValidateOptionalNearbyTarget(
+        Dictionary<string, List<string>> errors,
+        string prefix,
+        SubmitCommandRequest command,
+        UnitState? unit,
+        IReadOnlyDictionary<string, RegionState> regions)
+    {
+        if (string.IsNullOrWhiteSpace(command.TargetRegionId)
+            || unit is null
+            || !regions.TryGetValue(unit.RegionId, out var currentRegion)
+            || !regions.TryGetValue(command.TargetRegionId, out var targetRegion))
+        {
+            return;
+        }
+
+        if (!string.Equals(targetRegion.Id, currentRegion.Id, StringComparison.Ordinal)
+            && !currentRegion.AdjacentRegionIds.Contains(targetRegion.Id, StringComparer.Ordinal))
+        {
+            AddError(
+                errors,
+                $"{prefix}.targetRegionId",
+                $"{command.CommandType} target region '{targetRegion.Id}' must be the unit's current region or adjacent to '{currentRegion.Id}'.");
+        }
+    }
+
+    private static void ValidateNoTarget(
+        Dictionary<string, List<string>> errors,
+        string prefix,
+        SubmitCommandRequest command)
+    {
+        if (string.IsNullOrWhiteSpace(command.TargetRegionId))
+        {
+            return;
+        }
+
+        AddError(
+            errors,
+            $"{prefix}.targetRegionId",
+            $"{command.CommandType} commands do not accept a target region.");
     }
 
     private static void AddError(Dictionary<string, List<string>> errors, string key, string message)

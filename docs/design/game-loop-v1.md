@@ -33,6 +33,17 @@ Current command types:
 
 Command validation should become stricter before frontend work depends on it. The API should reject impossible or malformed commands before insert where practical, while the Engine remains the final rules authority.
 
+Current API-edge validation rejects:
+
+- empty command submissions
+- unknown, enemy, destroyed, or duplicate commanded units
+- region ids that do not match the unit's current location
+- unknown target regions
+- `Move` or `Attack` commands without adjacent target regions
+- `Move` commands into enemy-occupied target regions; the player should use `Attack`
+- remote `Recon` or `Support` target regions; targets must be current or adjacent when supplied
+- target regions on `HoldPosition` and `Resupply`
+
 ## Turn Summary
 
 Turn results should be explainable from persisted data:
