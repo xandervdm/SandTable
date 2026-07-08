@@ -12,6 +12,7 @@ We are working in E:\GitHub\SandTable on the SandTable browser-first WWII-inspir
 - docs/architecture/backend-v1.md
 - docs/architecture/engine-boundaries.md
 - docs/architecture/database-workflow.md
+- docs/architecture/theatre-content-pipeline.md
 
 Also open and inspect the visual mockup before designing or implementing the frontend:
 
@@ -61,6 +62,9 @@ Suggested UI implementation direction:
 - Use shadcn/ui where it helps for accessible, polished primitives such as buttons, dialogs, tabs, selects, tooltips, cards, sheets, and scroll areas.
 - Use lucide-react icons where appropriate.
 - Use a Vite dev proxy for /api to http://localhost:5171 rather than adding CORS first.
+- Keep HTTP calls isolated behind a small frontend game runtime/client module, for example `CampaignRuntime` or `GameClient`.
+- UI components should call runtime methods such as loadTheatres, createCampaign, loadCampaignState, submitCommands, resolveTurn, and chooseTensionOption rather than calling fetch directly.
+- The first implementation should use an HTTP-backed runtime adapter, but the UI should not depend on HTTP as the only possible game execution model.
 - Build the actual playable command interface as the first screen, not a marketing landing page.
 - Make the first UI slice support:
   1. Load theatre/scenario content.
@@ -73,6 +77,16 @@ Suggested UI implementation direction:
 - Keep the UI honest to backend state. Do not reconstruct rules from raw database tables.
 - If the first UI exposes awkward backend response shapes, make the smallest backend read-model addition needed, but preserve the Dapper/database-first architecture.
 
+Future runtime portability:
+
+- A future SandTable version may ship as a stand-alone non-browser game, for example through Steam, using `SandTable.Engine` as a WASM assembly.
+- Treat the ASP.NET API as the current browser development adapter, not as the only long-term game runtime.
+- Keep the React UI focused on game actions and view models, not raw endpoint paths or database-shaped data.
+- Keep API response normalization in the runtime/client layer so a future WASM-backed runtime can return the same frontend-facing shapes from local Engine calls.
+- Keep content loading outside `SandTable.Engine`: the browser adapter can load content through the API, while a future stand-alone adapter can load bundled theatre JSON and pass it into the Engine.
+- Do not bake implicit development users, PostgreSQL snapshots, OpenIddict ownership, or server-only concerns into reusable UI components.
+- OpenAPI/client generation may help the HTTP adapter later, but it should not become the only abstraction the UI can use.
+
 Visual target:
 
 - The UI should intentionally follow the mockup at Specification\SandTable-Mockup.png.
@@ -84,6 +98,17 @@ Visual target:
 - Use icons for controls where appropriate.
 - Ensure mobile/desktop text and panels do not overlap.
 - Make the interface responsive, but prioritize the desktop command-table experience first.
+
+Map rendering direction:
+
+- Render the North Africa theatre map from `content/theatres/north-africa/map.json`; do not bake the playable board into a static image.
+- Use the map content's coordinate system, region positions, routes, terrain, owners, features, and adjacency as the source of truth.
+- Build the map as an interactive SVG or equivalent code-rendered layer so labels, routes, selected units, valid targets, ownership, and unit counters can update from campaign state.
+- Match the generated mockup's parched staff-map feel: sun-bleached parchment, dusty desert texture, muted Mediterranean blue, weathered ink labels, dashed routes, and military board-game counters.
+- A generated or painted raster may be used later as a subtle background texture, but gameplay overlays must remain separate data-driven layers.
+- Keep labels and routes cleaner than the generated visual concept where necessary; readability and interaction feedback matter more than painterly detail.
+- The current North Africa `map.json` is a point-and-route gameplay graph, not full border/path cartography. Do not block the first playable slice on full region polygons.
+- Follow `docs/architecture/theatre-content-pipeline.md` for the longer-term split between gameplay topology, optional display geometry, and AI/open-source visual assets.
 
 Start by:
 
