@@ -291,6 +291,84 @@ public sealed class CampaignService(
         return rows.Select(row => row.ToResponse()).ToArray();
     }
 
+    public async Task<IReadOnlyList<CampaignTurnSummaryResponse>?> ListCampaignTurnsAsync(
+        Guid campaignUid,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var safeLimit = Math.Clamp(limit, 1, 100);
+        await using var connection = connectionFactory.CreateConnection();
+        var campaign = await LoadCampaignAsync(connection, null, campaignUid, cancellationToken);
+        if (campaign is null)
+        {
+            return null;
+        }
+
+        var rows = await connection.QueryAsync<CampaignTurnSummaryRow>(
+            new CommandDefinition(
+                """
+                select
+                    uid as CampaignTurnUid,
+                    turn_number as TurnNumber,
+                    status,
+                    resolution_mode as ResolutionMode,
+                    turn_summary as Summary,
+                    player_commands_committed_at as PlayerCommandsCommittedAt,
+                    ai_commands_planned_at as AiCommandsPlannedAt,
+                    resolved_at as ResolvedAt
+                from public.campaign_turn
+                where campaign_id = @CampaignId
+                order by turn_number
+                limit @Limit
+                """,
+                new
+                {
+                    CampaignId = campaign.Id,
+                    Limit = safeLimit
+                },
+                cancellationToken: cancellationToken));
+
+        return rows.Select(row => row.ToResponse()).ToArray();
+    }
+
+    public async Task<CampaignTurnSummaryResponse?> GetCampaignTurnAsync(
+        Guid campaignUid,
+        int turnNumber,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        var campaign = await LoadCampaignAsync(connection, null, campaignUid, cancellationToken);
+        if (campaign is null)
+        {
+            return null;
+        }
+
+        var row = await connection.QuerySingleOrDefaultAsync<CampaignTurnSummaryRow>(
+            new CommandDefinition(
+                """
+                select
+                    uid as CampaignTurnUid,
+                    turn_number as TurnNumber,
+                    status,
+                    resolution_mode as ResolutionMode,
+                    turn_summary as Summary,
+                    player_commands_committed_at as PlayerCommandsCommittedAt,
+                    ai_commands_planned_at as AiCommandsPlannedAt,
+                    resolved_at as ResolvedAt
+                from public.campaign_turn
+                where campaign_id = @CampaignId
+                    and turn_number = @TurnNumber
+                """,
+                new
+                {
+                    CampaignId = campaign.Id,
+                    TurnNumber = turnNumber
+                },
+                cancellationToken: cancellationToken));
+
+        return row?.ToResponse();
+    }
+
     public async Task<SubmitCommandsResponse?> SubmitCommandsAsync(
         Guid campaignUid,
         SubmitCommandsRequest request,
@@ -1202,5 +1280,30 @@ internal sealed class CampaignEventRow
             UnitId,
             Summary,
             payload);
+    }
+}
+
+internal sealed class CampaignTurnSummaryRow
+{
+    public Guid CampaignTurnUid { get; init; }
+    public int TurnNumber { get; init; }
+    public string Status { get; init; } = string.Empty;
+    public string ResolutionMode { get; init; } = string.Empty;
+    public string? Summary { get; init; }
+    public DateTime? PlayerCommandsCommittedAt { get; init; }
+    public DateTime? AiCommandsPlannedAt { get; init; }
+    public DateTime? ResolvedAt { get; init; }
+
+    public CampaignTurnSummaryResponse ToResponse()
+    {
+        return new CampaignTurnSummaryResponse(
+            CampaignTurnUid,
+            TurnNumber,
+            Status,
+            ResolutionMode,
+            Summary,
+            PlayerCommandsCommittedAt,
+            AiCommandsPlannedAt,
+            ResolvedAt);
     }
 }

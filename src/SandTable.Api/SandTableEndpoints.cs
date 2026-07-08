@@ -145,6 +145,40 @@ public static class SandTableEndpoints
             .Produces<IReadOnlyList<CampaignEventResponse>>()
             .Produces(StatusCodes.Status404NotFound);
 
+        group.MapGet("/campaigns/{campaignUid:guid}/turns", async (
+            Guid campaignUid,
+            int? limit,
+            [FromServices] CampaignService service,
+            CancellationToken cancellationToken) =>
+        {
+            var turns = await service.ListCampaignTurnsAsync(
+                campaignUid,
+                limit ?? 100,
+                cancellationToken);
+            return turns is null ? Results.NotFound() : Results.Ok(turns);
+        })
+            .WithName("ListCampaignTurns")
+            .WithTags("Turns")
+            .Produces<IReadOnlyList<CampaignTurnSummaryResponse>>()
+            .Produces(StatusCodes.Status404NotFound);
+
+        group.MapGet("/campaigns/{campaignUid:guid}/turns/{turnNumber:int}", async (
+            Guid campaignUid,
+            int turnNumber,
+            [FromServices] CampaignService service,
+            CancellationToken cancellationToken) =>
+        {
+            var turn = await service.GetCampaignTurnAsync(
+                campaignUid,
+                turnNumber,
+                cancellationToken);
+            return turn is null ? Results.NotFound() : Results.Ok(turn);
+        })
+            .WithName("GetCampaignTurn")
+            .WithTags("Turns")
+            .Produces<CampaignTurnSummaryResponse>()
+            .Produces(StatusCodes.Status404NotFound);
+
         group.MapPost("/campaigns/{campaignUid:guid}/commands", async (
             Guid campaignUid,
             SubmitCommandsRequest request,

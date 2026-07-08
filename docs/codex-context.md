@@ -80,6 +80,8 @@ Current API routes:
 - `GET /api/campaigns/{campaignUid}/snapshot`
 - `GET /api/campaigns/{campaignUid}/state`
 - `GET /api/campaigns/{campaignUid}/events`
+- `GET /api/campaigns/{campaignUid}/turns`
+- `GET /api/campaigns/{campaignUid}/turns/{turnNumber}`
 - `POST /api/campaigns/{campaignUid}/commands`
 - `POST /api/campaigns/{campaignUid}/resolve-turn`
 - `POST /api/campaigns/{campaignUid}/tensions/{cardId}/choose`

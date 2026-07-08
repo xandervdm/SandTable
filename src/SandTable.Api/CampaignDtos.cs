@@ -98,6 +98,16 @@ public sealed record CampaignEventResponse(
     string Summary,
     IReadOnlyDictionary<string, object?> Payload);
 
+public sealed record CampaignTurnSummaryResponse(
+    Guid CampaignTurnUid,
+    int TurnNumber,
+    string Status,
+    string ResolutionMode,
+    string? Summary,
+    DateTime? PlayerCommandsCommittedAt,
+    DateTime? AiCommandsPlannedAt,
+    DateTime? ResolvedAt);
+
 public sealed record SubmitCommandsResponse(
     Guid CampaignUid,
     Guid CampaignTurnUid,

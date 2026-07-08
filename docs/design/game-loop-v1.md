@@ -61,6 +61,7 @@ Before building the React UI, add read endpoints that expose:
 - current campaign summary: `GET /api/campaigns/{campaignUid}`
 - latest map, units, resources, active tensions, and tension history: `GET /api/campaigns/{campaignUid}/state`
 - persisted turn events: `GET /api/campaigns/{campaignUid}/events`
+- persisted turn summaries: `GET /api/campaigns/{campaignUid}/turns`
 
 The UI should not need to reconstruct rules from raw database tables.
 

@@ -58,6 +58,16 @@ Accept: application/json
 
 ###
 
+GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/turns
+Accept: application/json
+
+###
+
+GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/turns/1
+Accept: application/json
+
+###
+
 POST {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/commands
 Content-Type: application/json
 

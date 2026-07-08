@@ -49,6 +49,7 @@ Each state-changing operation should:
 - `POST /api/campaigns/{campaignUid}/commands` stores player commands for the current planning turn.
 - `POST /api/campaigns/{campaignUid}/resolve-turn` loads the latest state, plans AI commands, resolves the turn, generates active tensions, persists events, and writes a latest snapshot.
 - `POST /api/campaigns/{campaignUid}/tensions/{cardId}/choose` applies an active tension option, records the decision, emits events, and writes an autosave snapshot.
+- `GET /api/campaigns/{campaignUid}/turns` and `GET /api/campaigns/{campaignUid}/turns/{turnNumber}` expose persisted turn status and summaries from `campaign_turn`.
 
 ## Endpoint Metadata
 

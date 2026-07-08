@@ -46,6 +46,8 @@ public class DevDatabaseSmokeTests
             limit: 100,
             CampaignEventOrder.Chronological,
             cancellationToken);
+        var turns = await service.ListCampaignTurnsAsync(campaignUid, limit: 100, cancellationToken);
+        var resolvedTurn = await service.GetCampaignTurnAsync(campaignUid, turnNumber: 1, cancellationToken);
 
         Assert.NotNull(submitted);
         Assert.Equal(1, submitted.AcceptedCommandCount);
@@ -56,6 +58,10 @@ public class DevDatabaseSmokeTests
         Assert.Equal(2, state.TurnNumber);
         Assert.NotNull(events);
         Assert.NotEmpty(events);
+        Assert.NotNull(turns);
+        Assert.Contains(turns, turn => turn.TurnNumber == 1 && turn.Status == "Resolved");
+        Assert.NotNull(resolvedTurn);
+        Assert.Equal(resolved.Summary, resolvedTurn.Summary);
 
         if (state.ActiveTensions.Count > 0)
         {
