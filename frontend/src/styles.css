@@ -186,7 +186,7 @@ button:disabled {
 
 .command-grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 310px;
+  grid-template-columns: 260px minmax(0, 1fr) 300px;
   min-height: 0;
 }
 
@@ -335,7 +335,7 @@ button:disabled {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 132px;
+  grid-template-rows: minmax(0, 1fr) 184px;
   background: #101211;
 }
 
@@ -478,6 +478,10 @@ button:disabled {
   stroke-width: 4;
 }
 
+.unit-counter.planned rect {
+  filter: drop-shadow(0 0 7px rgba(255, 226, 140, 0.85));
+}
+
 .unit-counter text {
   text-anchor: middle;
   pointer-events: none;
@@ -502,10 +506,11 @@ button:disabled {
 .order-dock {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(250px, 1fr) minmax(150px, 0.8fr) 124px;
+  grid-template-columns: minmax(210px, 0.95fr) minmax(135px, 0.62fr) minmax(170px, 1fr) 118px;
   grid-template-areas:
-    "orders summary submit"
-    "orders summary resolve";
+    "orders summary tray submit"
+    "orders summary tray endturn"
+    "orders summary tray endturn";
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
@@ -554,14 +559,115 @@ button:disabled {
   margin-top: 4px;
 }
 
+.order-summary small {
+  display: block;
+  color: #b39d67;
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-orders {
+  grid-area: tray;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 9px;
+  border: 1px solid #4a4438;
+  border-radius: 6px;
+  background: rgba(10, 12, 11, 0.48);
+  overflow: hidden;
+}
+
+.pending-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pending-header strong {
+  color: #fff2cc;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.pending-header button,
+.pending-orders li button {
+  min-height: 28px;
+  border: 1px solid #514c3f;
+  border-radius: 4px;
+  color: #d8ceb5;
+  background: #191b19;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pending-header button {
+  padding: 0 9px;
+}
+
+.empty-orders {
+  display: block;
+  color: #bfb49c;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pending-orders ol {
+  max-height: 118px;
+  overflow: auto;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+}
+
+.pending-orders li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid rgba(214, 197, 148, 0.13);
+  border-radius: 5px;
+  background: rgba(226, 189, 114, 0.08);
+}
+
+.pending-orders li strong,
+.pending-orders li span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-orders li strong {
+  color: #f2dda2;
+  font-size: 12px;
+}
+
+.pending-orders li span {
+  color: #c7bda5;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
 .order-dock > .primary-button {
   grid-area: submit;
   width: 100%;
 }
 
 .order-dock > .gold-button {
-  grid-area: resolve;
+  grid-area: endturn;
   width: 100%;
+  height: 100%;
 }
 
 .tension-list {
@@ -705,8 +811,9 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "orders orders"
+      "tray tray"
       "summary summary"
-      "submit resolve";
+      "submit endturn";
   }
 }
 
@@ -751,9 +858,10 @@ button:disabled {
     grid-template-columns: 1fr;
     grid-template-areas:
       "orders"
+      "tray"
       "summary"
       "submit"
-      "resolve";
+      "endturn";
   }
 
   .footer-bar {

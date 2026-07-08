@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Shield,
   Star,
+  Trash2,
   Users
 } from "lucide-react";
 import { HttpGameClient } from "./runtime/httpGameClient";
@@ -38,6 +39,17 @@ const orderTypes: Array<{ value: OrderType; label: string }> = [
   { value: "HoldPosition", label: "Hold" }
 ];
 
+interface PendingOrder {
+  commandType: OrderType;
+  unitId: string;
+  unitName: string;
+  unitCode: string;
+  fromRegionId: string;
+  fromRegionName: string;
+  targetRegionId: string | null;
+  targetRegionName: string | null;
+}
+
 export function App() {
   const client = useMemo<GameClient>(() => new HttpGameClient(), []);
   const [apiHealthy, setApiHealthy] = useState(false);
@@ -51,6 +63,7 @@ export function App() {
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedTargetRegionId, setSelectedTargetRegionId] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<OrderType>("Move");
+  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [busy, setBusy] = useState<string | null>("Loading command table");
   const [error, setError] = useState<string | null>(null);
 
@@ -105,6 +118,7 @@ export function App() {
       setActiveCampaignUid(campaign.campaignUid);
       setSelectedTargetRegionId(null);
       setSelectedUnitId(resolveInitialUnit(state));
+      setPendingOrders([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load campaign.");
     } finally {
@@ -148,49 +162,98 @@ export function App() {
     }
   }
 
-  async function submitOrder() {
+  function addPendingOrder() {
     if (!campaignState || !activeCampaignUid || !selectedUnitId) {
       return;
     }
 
-    if (orderType !== "HoldPosition" && !selectedTargetRegionId) {
-      setError("Select a valid target region before submitting the order.");
+    const unit = campaignState.units.find((item) => item.id === selectedUnitId);
+    if (!unit) {
       return;
     }
 
+    if (unit.side !== campaignState.campaign.playerSide) {
+      setError("Only player units can receive orders.");
+      return;
+    }
+
+    if (orderType !== "HoldPosition" && !selectedTargetRegionId) {
+      setError("Select a valid target region before adding the order.");
+      return;
+    }
+
+    const fromRegion = campaignState.regions.find((region) => region.id === unit.regionId);
+    const targetRegion = selectedTargetRegionId
+      ? campaignState.regions.find((region) => region.id === selectedTargetRegionId)
+      : null;
+
+    const nextOrder: PendingOrder = {
+      commandType: orderType,
+      unitId: unit.id,
+      unitName: unit.name,
+      unitCode: unitCode(unit),
+      fromRegionId: unit.regionId,
+      fromRegionName: fromRegion?.name ?? unit.regionId,
+      targetRegionId: orderType === "HoldPosition" ? null : selectedTargetRegionId,
+      targetRegionName: orderType === "HoldPosition" ? null : targetRegion?.name ?? selectedTargetRegionId
+    };
+
+    setPendingOrders((orders) => [
+      ...orders.filter((order) => order.unitId !== unit.id),
+      nextOrder
+    ]);
+    setSelectedTargetRegionId(null);
+    setError(null);
+  }
+
+  async function endTurn() {
+    if (!campaignState || !activeCampaignUid || !currentTurn) {
+      return;
+    }
+
+    if (currentTurn.status === "Planning" && pendingOrders.length === 0) {
+      setError("Queue at least one order before ending the turn.");
+      return;
+    }
+
+    if (currentTurn.status !== "Planning" && currentTurn.status !== "Committed") {
+      setError("This turn cannot be ended from its current status.");
+      return;
+    }
+
+    let submittedOrders = false;
     try {
-      setBusy("Submitting order");
+      setBusy("Ending turn");
       setError(null);
-      await client.submitCommands(activeCampaignUid, [
-        {
-          commandType: orderType,
-          unitId: selectedUnitId,
-          targetRegionId: orderType === "HoldPosition" ? null : selectedTargetRegionId
-        }
-      ]);
+
+      if (currentTurn.status === "Planning") {
+        await client.submitCommands(
+          activeCampaignUid,
+          pendingOrders.map((order) => ({
+            commandType: order.commandType,
+            unitId: order.unitId,
+            regionId: order.fromRegionId,
+            targetRegionId: order.targetRegionId
+          }))
+        );
+        submittedOrders = true;
+        setPendingOrders([]);
+      }
+
+      await client.resolveTurn(activeCampaignUid);
       await refreshActiveCampaign();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not submit order.");
+      setError(err instanceof Error ? err.message : "Could not end turn.");
+      if (submittedOrders) {
+        await refreshActiveCampaign();
+      }
     } finally {
       setBusy(null);
     }
   }
 
-  async function resolveTurn() {
-    if (!activeCampaignUid) {
-      return;
-    }
-
-    try {
-      setBusy("Resolving turn");
-      setError(null);
-      await client.resolveTurn(activeCampaignUid);
-      await refreshActiveCampaign();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not resolve turn.");
-    } finally {
-      setBusy(null);
-    }
+  function removePendingOrder(unitId: string) {
+    setPendingOrders((orders) => orders.filter((order) => order.unitId !== unitId));
   }
 
   async function chooseTension(card: StrategicTensionCard, optionId: string) {
@@ -219,11 +282,30 @@ export function App() {
     ? campaignState?.regions.find((region) => region.id === selectedUnit.regionId) ?? null
     : null;
   const activeCampaign = campaignState?.campaign ?? campaigns.find((campaign) => campaign.campaignUid === activeCampaignUid);
-  const latestTurn = turns[0];
+  const currentTurn = campaignState
+    ? turns.find((turn) => turn.turnNumber === campaignState.turnNumber)
+    : undefined;
 
   function selectUnit(unitId: string) {
+    const clickedUnit = campaignState?.units.find((unit) => unit.id === unitId);
+    if (
+      clickedUnit &&
+      campaignState &&
+      clickedUnit.side !== campaignState.campaign.playerSide &&
+      validTargetIds.includes(clickedUnit.regionId)
+    ) {
+      setSelectedTargetRegionId(clickedUnit.regionId);
+      return;
+    }
+
     setSelectedUnitId(unitId);
-    setSelectedTargetRegionId(null);
+    const pendingOrder = pendingOrders.find((order) => order.unitId === unitId);
+    if (pendingOrder) {
+      setOrderType(pendingOrder.commandType);
+      setSelectedTargetRegionId(pendingOrder.targetRegionId);
+    } else {
+      setSelectedTargetRegionId(null);
+    }
   }
 
   function changeOrder(nextOrderType: OrderType) {
@@ -302,6 +384,7 @@ export function App() {
                 selectedUnitId={selectedUnitId}
                 selectedTargetRegionId={selectedTargetRegionId}
                 validTargetIds={validTargetIds}
+                plannedUnitIds={pendingOrders.map((order) => order.unitId)}
                 onUnitSelect={selectUnit}
                 onRegionSelect={(regionId) => {
                   if (validTargetIds.includes(regionId)) {
@@ -327,11 +410,14 @@ export function App() {
             selectedTargetRegionId={selectedTargetRegionId}
             validTargetIds={validTargetIds}
             campaignState={campaignState}
-            latestTurn={latestTurn}
+            currentTurn={currentTurn}
+            pendingOrders={pendingOrders}
             busy={busy}
             onOrderChange={changeOrder}
-            onSubmit={submitOrder}
-            onResolve={resolveTurn}
+            onAddOrder={addPendingOrder}
+            onRemoveOrder={removePendingOrder}
+            onClearOrders={() => setPendingOrders([])}
+            onEndTurn={endTurn}
           />
         </section>
 
@@ -467,31 +553,52 @@ function OrderDock({
   selectedTargetRegionId,
   validTargetIds,
   campaignState,
-  latestTurn,
+  currentTurn,
+  pendingOrders,
   busy,
   onOrderChange,
-  onSubmit,
-  onResolve
+  onAddOrder,
+  onRemoveOrder,
+  onClearOrders,
+  onEndTurn
 }: {
   orderType: OrderType;
   selectedUnit: UnitState | null;
   selectedTargetRegionId: string | null;
   validTargetIds: string[];
   campaignState: CampaignStateResponse | null;
-  latestTurn: CampaignTurnSummary | undefined;
+  currentTurn: CampaignTurnSummary | undefined;
+  pendingOrders: PendingOrder[];
   busy: string | null;
   onOrderChange(orderType: OrderType): void;
-  onSubmit(): void;
-  onResolve(): void;
+  onAddOrder(): void;
+  onRemoveOrder(unitId: string): void;
+  onClearOrders(): void;
+  onEndTurn(): void;
 }) {
   const targetName = campaignState?.regions.find((region) => region.id === selectedTargetRegionId)?.name;
-  const canSubmit = Boolean(
+  const selectedUnitIsPlayer = Boolean(
+    selectedUnit &&
+      campaignState &&
+      selectedUnit.side === campaignState.campaign.playerSide &&
+      selectedUnit.status !== "Destroyed"
+  );
+  const existingOrder = pendingOrders.find((order) => order.unitId === selectedUnit?.id);
+  const canAdd = Boolean(
     selectedUnit &&
       campaignState &&
       !busy &&
+      selectedUnitIsPlayer &&
       (orderType === "HoldPosition" || selectedTargetRegionId)
   );
-  const canResolve = Boolean(campaignState && !busy && latestTurn?.status !== "Resolved");
+  const canEndTurn = Boolean(
+    campaignState &&
+      !busy &&
+      (
+        (currentTurn?.status === "Planning" && pendingOrders.length > 0) ||
+        (currentTurn?.status === "Committed" && pendingOrders.length === 0)
+      )
+  );
 
   return (
     <div className="order-dock">
@@ -510,19 +617,56 @@ function OrderDock({
       <div className="order-summary">
         <strong>{selectedUnit?.name ?? "No unit selected"}</strong>
         <span>
-          {orderType === "HoldPosition"
-            ? "Hold current position"
-            : targetName
-              ? `Target: ${targetName}`
-              : `${validTargetIds.length} valid target${validTargetIds.length === 1 ? "" : "s"}`}
+          {!selectedUnitIsPlayer && selectedUnit
+            ? "Enemy unit selected"
+            : orderType === "HoldPosition"
+              ? "Hold current position"
+              : targetName
+                ? `Target: ${targetName}`
+                : `${validTargetIds.length} valid target${validTargetIds.length === 1 ? "" : "s"}`}
         </span>
+        <small>
+          Turn status: {currentTurn?.status ?? "Planning"}
+          {existingOrder ? " · order queued" : ""}
+        </small>
       </div>
-      <button className="primary-button" onClick={onSubmit} disabled={!canSubmit}>
+
+      <div className="pending-orders">
+        <div className="pending-header">
+          <strong>Pending Orders</strong>
+          <button onClick={onClearOrders} disabled={pendingOrders.length === 0 || Boolean(busy)}>
+            Clear
+          </button>
+        </div>
+        {pendingOrders.length === 0 ? (
+          <span className="empty-orders">Queue unit orders before ending the turn.</span>
+        ) : (
+          <ol>
+            {pendingOrders.map((order) => (
+              <li key={order.unitId}>
+                <div>
+                  <strong>{order.unitCode} {order.unitName}</strong>
+                  <span>
+                    {order.commandType === "HoldPosition"
+                      ? `Hold at ${order.fromRegionName}`
+                      : `${order.commandType} ${order.targetRegionName}`}
+                  </span>
+                </div>
+                <button onClick={() => onRemoveOrder(order.unitId)} disabled={Boolean(busy)} aria-label={`Remove ${order.unitName} order`}>
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+
+      <button className="primary-button" onClick={onAddOrder} disabled={!canAdd}>
         <Play size={16} />
-        Submit Order
+        {existingOrder ? "Update" : "Add"}
       </button>
-      <button className="gold-button" onClick={onResolve} disabled={!canResolve}>
-        Resolve Turn
+      <button className="gold-button" onClick={onEndTurn} disabled={!canEndTurn}>
+        End Turn
       </button>
     </div>
   );
@@ -595,6 +739,7 @@ function TheatreMap({
   selectedUnitId,
   selectedTargetRegionId,
   validTargetIds,
+  plannedUnitIds,
   onUnitSelect,
   onRegionSelect
 }: {
@@ -603,6 +748,7 @@ function TheatreMap({
   selectedUnitId: string | null;
   selectedTargetRegionId: string | null;
   validTargetIds: string[];
+  plannedUnitIds: string[];
   onUnitSelect(unitId: string): void;
   onRegionSelect(regionId: string): void;
 }) {
@@ -700,7 +846,7 @@ function TheatreMap({
             return (
               <g
                 key={unit.id}
-                className={`unit-counter ${unit.side.toLowerCase()} ${unit.id === selectedUnitId ? "selected" : ""}`}
+                className={`unit-counter ${unit.side.toLowerCase()} ${unit.id === selectedUnitId ? "selected" : ""} ${plannedUnitIds.includes(unit.id) ? "planned" : ""}`}
                 transform={`translate(${x} ${y})`}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -743,6 +889,10 @@ function resolveInitialUnit(state: CampaignStateResponse) {
 
 function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | null, state: CampaignStateResponse | null) {
   if (!selectedUnit || !state || orderType === "HoldPosition") {
+    return [];
+  }
+
+  if (selectedUnit.side !== state.campaign.playerSide || selectedUnit.status === "Destroyed") {
     return [];
   }
 
