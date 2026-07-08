@@ -25,7 +25,8 @@ public sealed class CampaignService(
         var scenarioId = string.IsNullOrWhiteSpace(request.ScenarioId) ? "north-africa-1942" : request.ScenarioId;
         var content = await contentRepository.LoadAsync("north-africa", scenarioId, cancellationToken);
         var playerSide = request.PlayerSide ?? content.Scenario.DefaultSide;
-        var initialState = scenarioFactory.CreateInitialState(content.Map, content.Scenario, content.Units, playerSide);
+        var seed = request.RandomSeed ?? RandomNumberGenerator.GetInt32(1, int.MaxValue);
+        var initialState = scenarioFactory.CreateInitialState(content.Map, content.Scenario, content.Units, playerSide, seed);
 
         await using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -33,7 +34,6 @@ public sealed class CampaignService(
 
         var devPlayer = await devPlayerBootstrapper.EnsureAsync(connection, transaction, cancellationToken);
         var campaignName = string.IsNullOrWhiteSpace(request.Name) ? content.Scenario.Name : request.Name.Trim();
-        var seed = request.RandomSeed ?? RandomNumberGenerator.GetInt32(1, int.MaxValue);
 
         var campaign = await connection.QuerySingleAsync<CampaignIdentity>(
             new CommandDefinition(

@@ -5,6 +5,7 @@ obj/
 .vscode/
 .dotnet_cli_home/
 .dotnet_cli_home_build/
+.dotnet-test-out/
 TestResults/
 *.csproj.user
 node_modules/

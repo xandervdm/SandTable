@@ -228,6 +228,11 @@ button:disabled {
   line-height: 1.45;
 }
 
+.panel p.campaign-result-copy {
+  color: #ffe3a0;
+  font-weight: 900;
+}
+
 .score-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -382,6 +387,13 @@ button:disabled {
   fill: none;
   stroke: rgba(77, 61, 35, 0.26);
   stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.adjacency-routes line {
+  stroke: rgba(70, 48, 27, 0.42);
+  stroke-width: 2.5;
+  stroke-dasharray: 2 10;
   stroke-linecap: round;
 }
 
@@ -570,6 +582,14 @@ button:disabled {
   white-space: nowrap;
 }
 
+.campaign-complete-summary strong {
+  color: #ffe2a0;
+}
+
+.campaign-complete-summary span {
+  color: #f0dfb7;
+}
+
 .pending-orders {
   grid-area: tray;
   min-width: 0;
@@ -580,6 +600,34 @@ button:disabled {
   border-radius: 6px;
   background: rgba(10, 12, 11, 0.48);
   overflow: hidden;
+}
+
+.campaign-result-card {
+  height: 100%;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(255, 223, 147, 0.35);
+  border-radius: 5px;
+  background: rgba(226, 189, 114, 0.12);
+}
+
+.campaign-result-card strong,
+.campaign-result-card span {
+  display: block;
+}
+
+.campaign-result-card strong {
+  color: #ffe2a0;
+  font-size: 17px;
+  text-transform: uppercase;
+}
+
+.campaign-result-card span {
+  color: #d8ceb5;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .pending-header {

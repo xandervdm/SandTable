@@ -15,7 +15,7 @@
   "victoryConditions": [
     {
       "type": "ControlRegion",
-      "regionId": "alexandria",
+      "regionId": "cairo",
       "requiredOwner": "Axis"
     }
   ],

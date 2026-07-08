@@ -148,7 +148,7 @@ export function App() {
       setBusy("Creating campaign");
       setError(null);
       const detail = await client.createCampaign({
-        name: "North Africa Campaign",
+        name: `North Africa Campaign ${formatCampaignNameSuffix()}`,
         scenarioId: scenario.scenarioId,
         playerSide: scenario.defaultSide
       });
@@ -164,6 +164,11 @@ export function App() {
 
   function addPendingOrder() {
     if (!campaignState || !activeCampaignUid || !selectedUnitId) {
+      return;
+    }
+
+    if (currentTurnStatus !== "Planning") {
+      setError("Refresh the campaign before adding orders to the next planning turn.");
       return;
     }
 
@@ -207,16 +212,16 @@ export function App() {
   }
 
   async function endTurn() {
-    if (!campaignState || !activeCampaignUid || !currentTurn) {
+    if (!campaignState || !activeCampaignUid) {
       return;
     }
 
-    if (currentTurn.status === "Planning" && pendingOrders.length === 0) {
+    if (currentTurnStatus === "Planning" && pendingOrders.length === 0) {
       setError("Queue at least one order before ending the turn.");
       return;
     }
 
-    if (currentTurn.status !== "Planning" && currentTurn.status !== "Committed") {
+    if (currentTurnStatus !== "Planning" && currentTurnStatus !== "Committed") {
       setError("This turn cannot be ended from its current status.");
       return;
     }
@@ -226,7 +231,7 @@ export function App() {
       setBusy("Ending turn");
       setError(null);
 
-      if (currentTurn.status === "Planning") {
+      if (currentTurnStatus === "Planning") {
         await client.submitCommands(
           activeCampaignUid,
           pendingOrders.map((order) => ({
@@ -285,6 +290,7 @@ export function App() {
   const currentTurn = campaignState
     ? turns.find((turn) => turn.turnNumber === campaignState.turnNumber)
     : undefined;
+  const currentTurnStatus = resolveCurrentTurnStatus(campaignState, currentTurn);
 
   function selectUnit(unitId: string) {
     const clickedUnit = campaignState?.units.find((unit) => unit.id === unitId);
@@ -410,7 +416,7 @@ export function App() {
             selectedTargetRegionId={selectedTargetRegionId}
             validTargetIds={validTargetIds}
             campaignState={campaignState}
-            currentTurn={currentTurn}
+            currentTurnStatus={currentTurnStatus}
             pendingOrders={pendingOrders}
             busy={busy}
             onOrderChange={changeOrder}
@@ -504,9 +510,17 @@ function StatusPanel({
 
       <Panel title="Victory Condition">
         <p>
-          Capture Alexandria and keep the supply chain alive across the desert.
+          Capture Cairo and keep the supply chain alive across the desert.
         </p>
       </Panel>
+
+      {campaignState?.isComplete ? (
+        <Panel title="Campaign Result">
+          <p className="campaign-result-copy">
+            {formatCampaignResult(campaignState.result)}. The campaign objective has been decided.
+          </p>
+        </Panel>
+      ) : null}
 
       <Panel title="Status">
         <div className="status-list">
@@ -553,7 +567,7 @@ function OrderDock({
   selectedTargetRegionId,
   validTargetIds,
   campaignState,
-  currentTurn,
+  currentTurnStatus,
   pendingOrders,
   busy,
   onOrderChange,
@@ -567,7 +581,7 @@ function OrderDock({
   selectedTargetRegionId: string | null;
   validTargetIds: string[];
   campaignState: CampaignStateResponse | null;
-  currentTurn: CampaignTurnSummary | undefined;
+  currentTurnStatus: string;
   pendingOrders: PendingOrder[];
   busy: string | null;
   onOrderChange(orderType: OrderType): void;
@@ -577,6 +591,7 @@ function OrderDock({
   onEndTurn(): void;
 }) {
   const targetName = campaignState?.regions.find((region) => region.id === selectedTargetRegionId)?.name;
+  const campaignResult = campaignState?.isComplete ? formatCampaignResult(campaignState.result) : null;
   const selectedUnitIsPlayer = Boolean(
     selectedUnit &&
       campaignState &&
@@ -588,17 +603,12 @@ function OrderDock({
     selectedUnit &&
       campaignState &&
       !busy &&
+      currentTurnStatus === "Planning" &&
       selectedUnitIsPlayer &&
       (orderType === "HoldPosition" || selectedTargetRegionId)
   );
-  const canEndTurn = Boolean(
-    campaignState &&
-      !busy &&
-      (
-        (currentTurn?.status === "Planning" && pendingOrders.length > 0) ||
-        (currentTurn?.status === "Committed" && pendingOrders.length === 0)
-      )
-  );
+  const endTurnBlocker = resolveEndTurnBlocker(campaignState, currentTurnStatus, pendingOrders, busy);
+  const canEndTurn = !endTurnBlocker;
 
   return (
     <div className="order-dock">
@@ -614,50 +624,68 @@ function OrderDock({
           </button>
         ))}
       </div>
-      <div className="order-summary">
-        <strong>{selectedUnit?.name ?? "No unit selected"}</strong>
-        <span>
-          {!selectedUnitIsPlayer && selectedUnit
-            ? "Enemy unit selected"
-            : orderType === "HoldPosition"
-              ? "Hold current position"
-              : targetName
-                ? `Target: ${targetName}`
-                : `${validTargetIds.length} valid target${validTargetIds.length === 1 ? "" : "s"}`}
-        </span>
-        <small>
-          Turn status: {currentTurn?.status ?? "Planning"}
-          {existingOrder ? " · order queued" : ""}
-        </small>
+      <div className={campaignResult ? "order-summary campaign-complete-summary" : "order-summary"}>
+        <strong>{campaignResult ? `Campaign ${campaignResult}` : selectedUnit?.name ?? "No unit selected"}</strong>
+        {campaignResult ? (
+          <>
+            <span>The final objective has been reached.</span>
+            <small>Start a new campaign to play again.</small>
+          </>
+        ) : (
+          <>
+            <span>
+              {!selectedUnitIsPlayer && selectedUnit
+                ? "Enemy unit selected"
+                : orderType === "HoldPosition"
+                  ? "Hold current position"
+                  : targetName
+                    ? `Target: ${targetName}`
+                    : `${validTargetIds.length} valid target${validTargetIds.length === 1 ? "" : "s"}`}
+            </span>
+            <small>
+              Turn status: {currentTurnStatus}
+              {existingOrder ? " · order queued" : ""}
+            </small>
+          </>
+        )}
       </div>
 
       <div className="pending-orders">
-        <div className="pending-header">
-          <strong>Pending Orders</strong>
-          <button onClick={onClearOrders} disabled={pendingOrders.length === 0 || Boolean(busy)}>
-            Clear
-          </button>
-        </div>
-        {pendingOrders.length === 0 ? (
-          <span className="empty-orders">Queue unit orders before ending the turn.</span>
+        {campaignResult ? (
+          <div className="campaign-result-card">
+            <strong>{campaignResult}</strong>
+            <span>Operations have concluded. No further orders can be issued in this campaign.</span>
+          </div>
         ) : (
-          <ol>
-            {pendingOrders.map((order) => (
-              <li key={order.unitId}>
-                <div>
-                  <strong>{order.unitCode} {order.unitName}</strong>
-                  <span>
-                    {order.commandType === "HoldPosition"
-                      ? `Hold at ${order.fromRegionName}`
-                      : `${order.commandType} ${order.targetRegionName}`}
-                  </span>
-                </div>
-                <button onClick={() => onRemoveOrder(order.unitId)} disabled={Boolean(busy)} aria-label={`Remove ${order.unitName} order`}>
-                  <Trash2 size={14} />
-                </button>
-              </li>
-            ))}
-          </ol>
+          <>
+            <div className="pending-header">
+              <strong>Pending Orders</strong>
+              <button onClick={onClearOrders} disabled={pendingOrders.length === 0 || Boolean(busy)}>
+                Clear
+              </button>
+            </div>
+            {pendingOrders.length === 0 ? (
+              <span className="empty-orders">Queue unit orders before ending the turn.</span>
+            ) : (
+              <ol>
+                {pendingOrders.map((order) => (
+                  <li key={order.unitId}>
+                    <div>
+                      <strong>{order.unitCode} {order.unitName}</strong>
+                      <span>
+                        {order.commandType === "HoldPosition"
+                          ? `Hold at ${order.fromRegionName}`
+                          : `${order.commandType} ${order.targetRegionName}`}
+                      </span>
+                    </div>
+                    <button onClick={() => onRemoveOrder(order.unitId)} disabled={Boolean(busy)} aria-label={`Remove ${order.unitName} order`}>
+                      <Trash2 size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </>
         )}
       </div>
 
@@ -665,7 +693,12 @@ function OrderDock({
         <Play size={16} />
         {existingOrder ? "Update" : "Add"}
       </button>
-      <button className="gold-button" onClick={onEndTurn} disabled={!canEndTurn}>
+      <button
+        className="gold-button"
+        onClick={onEndTurn}
+        disabled={!canEndTurn}
+        title={endTurnBlocker ?? "Submit orders and resolve the turn"}
+      >
         End Turn
       </button>
     </div>
@@ -755,6 +788,7 @@ function TheatreMap({
   const regionDefinitions = new Map(map.regions.map((region) => [region.id, region]));
   const regionStates = new Map(state.regions.map((region) => [region.id, region]));
   const unitsByRegion = groupUnitsByRegion(state.units);
+  const adjacencyTracks = resolveUnroutedAdjacencyTracks(map);
 
   return (
     <svg className="theatre-map" viewBox={`0 0 ${map.coordinateSystem.width} ${map.coordinateSystem.height}`} role="img">
@@ -786,6 +820,18 @@ function TheatreMap({
       <g className="terrain-marks">
         <path d="M315 275 l18 -35 l18 35 M352 275 l15 -28 l15 28 M390 470 l18 -32 l18 32 M450 480 l14 -24 l14 24" />
         <path d="M620 365 c38 -20 76 -18 112 4 M205 400 c42 -18 84 -12 126 7 M750 430 c45 -12 88 -6 130 16" />
+      </g>
+
+      <g className="adjacency-routes">
+        {adjacencyTracks.map((track) => (
+          <line
+            key={`${track.from.id}-${track.to.id}`}
+            x1={track.from.position.x}
+            y1={track.from.position.y}
+            x2={track.to.position.x}
+            y2={track.to.position.y}
+          />
+        ))}
       </g>
 
       <g className="routes">
@@ -887,6 +933,63 @@ function resolveInitialUnit(state: CampaignStateResponse) {
   return state.units.find((unit) => unit.side === state.campaign.playerSide && unit.status !== "Destroyed")?.id ?? null;
 }
 
+function resolveCurrentTurnStatus(
+  campaignState: CampaignStateResponse | null,
+  currentTurn: CampaignTurnSummary | undefined
+) {
+  if (!campaignState) {
+    return "Unknown";
+  }
+
+  if (
+    currentTurn?.status === "Resolved" &&
+    campaignState.campaign.status === "Active" &&
+    campaignState.campaign.currentTurnNumber === campaignState.turnNumber &&
+    !campaignState.isComplete
+  ) {
+    return "Planning";
+  }
+
+  if (currentTurn?.status) {
+    return currentTurn.status;
+  }
+
+  return campaignState.isComplete ? "Resolved" : "Planning";
+}
+
+function resolveEndTurnBlocker(
+  campaignState: CampaignStateResponse | null,
+  currentTurnStatus: string,
+  pendingOrders: PendingOrder[],
+  busy: string | null
+) {
+  if (busy) {
+    return busy;
+  }
+
+  if (!campaignState) {
+    return "No campaign loaded";
+  }
+
+  if (campaignState.isComplete) {
+    return `Campaign ${formatCampaignResult(campaignState.result)}`;
+  }
+
+  if (currentTurnStatus === "Planning") {
+    return pendingOrders.length > 0 ? null : "Queue at least one order";
+  }
+
+  if (currentTurnStatus === "Committed") {
+    return pendingOrders.length === 0 ? null : "Refresh the committed turn";
+  }
+
+  return `Turn is ${currentTurnStatus}`;
+}
+
+function formatCampaignResult(result: string | null | undefined) {
+  return result?.trim() || "Complete";
+}
+
 function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | null, state: CampaignStateResponse | null) {
   if (!selectedUnit || !state || orderType === "HoldPosition") {
     return [];
@@ -919,6 +1022,26 @@ function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | nul
   return currentRegion.adjacentRegionIds;
 }
 
+function resolveUnroutedAdjacencyTracks(map: MapDefinition) {
+  const regionsById = new Map(map.regions.map((region) => [region.id, region]));
+  const routedEdges = new Set(map.routes.map((route) => edgeKey(route.fromRegionId, route.toRegionId)));
+
+  return map.regions.flatMap((region) =>
+    region.adjacentRegionIds.flatMap((adjacentRegionId) => {
+      if (region.id > adjacentRegionId || routedEdges.has(edgeKey(region.id, adjacentRegionId))) {
+        return [];
+      }
+
+      const adjacentRegion = regionsById.get(adjacentRegionId);
+      return adjacentRegion ? [{ from: region, to: adjacentRegion }] : [];
+    })
+  );
+}
+
+function edgeKey(firstRegionId: string, secondRegionId: string) {
+  return [firstRegionId, secondRegionId].sort().join("::");
+}
+
 function groupUnitsByRegion(units: UnitState[]) {
   const grouped = new Map<string, UnitState[]>();
   for (const unit of units.filter((item) => item.status !== "Destroyed")) {
@@ -940,4 +1063,14 @@ function unitCode(unit: UnitState) {
     return "LOG";
   }
   return "AIR";
+}
+
+function formatCampaignNameSuffix(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+  return `${year}${month}${day}-${hour}${minute}${second}`;
 }

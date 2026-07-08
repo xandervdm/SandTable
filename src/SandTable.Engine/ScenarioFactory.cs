@@ -8,21 +8,25 @@ public sealed class ScenarioFactory
         MapDefinition map,
         ScenarioDefinition scenario,
         UnitCatalog unitCatalog,
-        Side? playerSide = null)
+        Side? playerSide = null,
+        int? randomSeed = null)
     {
         Validate(map, scenario, unitCatalog);
 
         var actualPlayerSide = playerSide ?? scenario.DefaultSide;
         var enemySide = actualPlayerSide == Side.Axis ? Side.Allies : Side.Axis;
-        var startingUnitIds = scenario.StartingUnitIds.ToHashSet(StringComparer.Ordinal);
-        var units = unitCatalog.Units
-            .Where(unit => startingUnitIds.Contains(unit.Id))
+        var unitDefinitions = unitCatalog.Units.ToDictionary(unit => unit.Id, StringComparer.Ordinal);
+        var regionIds = map.Regions.Select(region => region.Id).ToHashSet(StringComparer.Ordinal);
+        var occupiedRegions = new HashSet<string>(StringComparer.Ordinal);
+        var random = randomSeed.HasValue ? new Random(randomSeed.Value) : null;
+        var units = scenario.StartingUnitIds
+            .Select(unitId => unitDefinitions[unitId])
             .Select(unit => new UnitState(
                 unit.Id,
                 unit.Name,
                 unit.Side,
                 unit.Type,
-                unit.RegionId,
+                SelectDeploymentRegion(unit, regionIds, occupiedRegions, random),
                 unit.Strength,
                 unit.MaxStrength,
                 unit.Movement,
@@ -91,6 +95,17 @@ public sealed class ScenarioFactory
         }
 
         var units = unitCatalog.Units.ToDictionary(unit => unit.Id, StringComparer.Ordinal);
+        foreach (var unit in unitCatalog.Units)
+        {
+            foreach (var deploymentRegionId in unit.DeploymentRegionIds ?? Array.Empty<string>())
+            {
+                if (!regions.Contains(deploymentRegionId))
+                {
+                    throw new ContentValidationException($"Unit '{unit.Id}' references missing deployment region '{deploymentRegionId}'.");
+                }
+            }
+        }
+
         foreach (var startingUnitId in scenario.StartingUnitIds)
         {
             if (!units.TryGetValue(startingUnitId, out var unit))
@@ -111,5 +126,32 @@ public sealed class ScenarioFactory
                 throw new ContentValidationException($"Victory condition references missing region '{condition.RegionId}'.");
             }
         }
+    }
+
+    private static string SelectDeploymentRegion(
+        UnitDefinition unit,
+        IReadOnlySet<string> regionIds,
+        HashSet<string> occupiedRegions,
+        Random? random)
+    {
+        if (random is null)
+        {
+            occupiedRegions.Add(unit.RegionId);
+            return unit.RegionId;
+        }
+
+        var deploymentPool = (unit.DeploymentRegionIds is { Count: > 0 }
+                ? unit.DeploymentRegionIds
+                : [unit.RegionId])
+            .Where(regionIds.Contains)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var availablePool = deploymentPool
+            .Where(regionId => !occupiedRegions.Contains(regionId))
+            .ToArray();
+        var selectedPool = availablePool.Length > 0 ? availablePool : deploymentPool;
+        var selectedRegionId = selectedPool[random.Next(selectedPool.Length)];
+        occupiedRegions.Add(selectedRegionId);
+        return selectedRegionId;
     }
 }

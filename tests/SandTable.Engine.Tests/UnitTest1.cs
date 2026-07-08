@@ -20,6 +20,7 @@ public class NorthAfricaScenarioTests
         Assert.Equal("north-africa-1942", state.ScenarioId);
         Assert.Equal(1, state.TurnNumber);
         Assert.Equal(Engine.Side.Axis, state.PlayerSide);
+        Assert.Equal("cairo", state.VictoryRegionId);
         Assert.Contains(state.Regions, region => region.Id == "alexandria" && region.Owner == Engine.Side.Allies);
         Assert.Contains(state.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "tripoli");
     }
@@ -42,6 +43,34 @@ public class NorthAfricaScenarioTests
         Assert.Contains(resolution.Events, gameEvent => gameEvent.EventType == Engine.GameEventType.Movement);
         Assert.Contains(resolution.NextState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "benghazi");
         Assert.Contains(startingState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "tripoli");
+    }
+
+    [Fact]
+    public async Task Seeded_initial_state_randomizes_unit_deployment_within_content_pools()
+    {
+        var content = await LoadContentAsync();
+        var factory = new Engine.ScenarioFactory();
+
+        var defaultState = factory.CreateInitialState(content.Map, content.Scenario, content.Units);
+        var seededState = factory.CreateInitialState(content.Map, content.Scenario, content.Units, randomSeed: 1942);
+        var repeatState = factory.CreateInitialState(content.Map, content.Scenario, content.Units, randomSeed: 1942);
+
+        Assert.Equal(
+            seededState.Units.Select(unit => (unit.Id, unit.RegionId)),
+            repeatState.Units.Select(unit => (unit.Id, unit.RegionId)));
+        Assert.NotEqual(
+            defaultState.Units.Select(unit => (unit.Id, unit.RegionId)),
+            seededState.Units.Select(unit => (unit.Id, unit.RegionId)));
+
+        var unitDefinitions = content.Units.Units.ToDictionary(unit => unit.Id, StringComparer.Ordinal);
+        foreach (var unit in seededState.Units)
+        {
+            var definition = unitDefinitions[unit.Id];
+            var deploymentPool = definition.DeploymentRegionIds is { Count: > 0 }
+                ? definition.DeploymentRegionIds
+                : new[] { definition.RegionId };
+            Assert.Contains(unit.RegionId, deploymentPool);
+        }
     }
 
     private static async Task<(Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units)> LoadContentAsync()

@@ -170,7 +170,8 @@ public sealed record UnitDefinition(
     int Supply,
     int Morale,
     int Experience,
-    UnitStatus Status);
+    UnitStatus Status,
+    IReadOnlyList<string>? DeploymentRegionIds = null);
 
 public sealed record DoctrineCatalog(IReadOnlyList<DoctrineDefinition> Doctrines);
 

@@ -93,6 +93,7 @@ export interface UnitDefinition {
   morale: number;
   experience: number;
   status: UnitStatus;
+  deploymentRegionIds?: string[] | null;
 }
 
 export interface ScenarioContent {

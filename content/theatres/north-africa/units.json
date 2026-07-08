@@ -14,7 +14,8 @@
       "supply": 8,
       "morale": 8,
       "experience": 6,
-      "status": "Ready"
+      "status": "Ready",
+      "deploymentRegionIds": ["tripoli", "benghazi", "gazala"]
     },
     {
       "id": "21st-panzer",
@@ -30,7 +31,8 @@
       "supply": 7,
       "morale": 7,
       "experience": 6,
-      "status": "Ready"
+      "status": "Ready",
+      "deploymentRegionIds": ["tripoli", "benghazi", "gazala"]
     },
     {
       "id": "africa-corps-logistics",
@@ -46,7 +48,8 @@
       "supply": 10,
       "morale": 6,
       "experience": 5,
-      "status": "Ready"
+      "status": "Ready",
+      "deploymentRegionIds": ["tripoli", "benghazi"]
     },
     {
       "id": "7th-armoured",
@@ -62,7 +65,8 @@
       "supply": 8,
       "morale": 8,
       "experience": 6,
-      "status": "Ready"
+      "status": "Ready",
+      "deploymentRegionIds": ["tobruk", "el-alamein", "alexandria"]
     },
     {
       "id": "tobruk-garrison",
@@ -78,7 +82,8 @@
       "supply": 7,
       "morale": 7,
       "experience": 5,
-      "status": "Ready"
+      "status": "Ready",
+      "deploymentRegionIds": ["tobruk", "el-alamein"]
     },
     {
       "id": "desert-air-wing",
@@ -94,7 +99,8 @@
       "supply": 6,
       "morale": 7,
       "experience": 5,
-      "status": "Ready"
+      "status": "Ready",
+      "deploymentRegionIds": ["alexandria", "cairo", "el-alamein"]
     }
   ]
 }

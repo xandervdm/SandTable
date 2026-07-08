@@ -33,6 +33,13 @@ public class DockerPostgresSmokeTests
                 Side.Axis,
                 RandomSeed: 1942),
             cancellationToken);
+        var panzer = campaign.State.Units.Single(unit => unit.Id == "21st-panzer");
+        var panzerRegion = campaign.State.Regions.Single(region => region.Id == panzer.RegionId);
+        var targetRegionId = panzerRegion.AdjacentRegionIds.First(regionId =>
+            !campaign.State.Units.Any(unit =>
+                unit.RegionId == regionId &&
+                unit.Side != Side.Axis &&
+                unit.Status != UnitStatus.Destroyed));
 
         var campaignUid = campaign.Campaign.CampaignUid;
         var submitted = await service.SubmitCommandsAsync(
@@ -43,7 +50,7 @@ public class DockerPostgresSmokeTests
                     OrderType.Move,
                     "21st-panzer",
                     RegionId: null,
-                    TargetRegionId: "gazala")
+                    TargetRegionId: targetRegionId)
             ]),
             cancellationToken);
 
