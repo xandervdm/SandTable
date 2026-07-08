@@ -73,6 +73,37 @@ public class NorthAfricaScenarioTests
         }
     }
 
+    [Fact]
+    public async Task Ai_moves_toward_distant_enemy_when_fronts_are_separated()
+    {
+        var content = await LoadContentAsync();
+        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var separatedState = state with
+        {
+            Regions = state.Regions
+                .Select(region => region.Id switch
+                {
+                    "tripoli" => region with { Owner = Engine.Side.Axis },
+                    "cairo" => region with { Owner = Engine.Side.Allies },
+                    _ => region with { Owner = Engine.Side.Neutral }
+                })
+                .ToArray(),
+            Units =
+            [
+                state.Units.Single(unit => unit.Id == "15th-panzer") with { RegionId = "tripoli" },
+                state.Units.Single(unit => unit.Id == "desert-air-wing") with { RegionId = "cairo" }
+            ]
+        };
+
+        var commands = new Engine.BasicAiPlanner().Plan(separatedState, Engine.Side.Allies);
+
+        Assert.Contains(commands, command =>
+            command.CommandType == Engine.OrderType.Move
+            && command.UnitId == "desert-air-wing"
+            && command.RegionId == "cairo"
+            && command.TargetRegionId == "alexandria");
+    }
+
     private static async Task<(Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units)> LoadContentAsync()
     {
         var theatrePath = Path.Combine(FindRepoRoot(), "content", "theatres", "north-africa");
