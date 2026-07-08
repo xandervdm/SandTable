@@ -50,12 +50,19 @@ Each state-changing operation should:
 - `POST /api/campaigns/{campaignUid}/resolve-turn` loads the latest state, plans AI commands, resolves the turn, generates active tensions, persists events, and writes a latest snapshot.
 - `POST /api/campaigns/{campaignUid}/tensions/{cardId}/choose` applies an active tension option, records the decision, emits events, and writes an autosave snapshot.
 
-## Error Handling Direction
+## Dev Database Smoke Coverage
 
-Current endpoints are still minimal. The next refinement should introduce consistent problem responses for:
+`tests/SandTable.Api.Tests/DevDatabaseSmokeTests.cs` is gated by `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.
+When the variable is absent, it returns without database access. When present, it creates a dev campaign through `CampaignService`, submits a command, resolves a turn, reads campaign state/events, and chooses a generated tension option when available.
+
+## Error Handling
+
+Current endpoints return problem responses for:
 
 - unknown campaigns
 - invalid command submissions
 - invalid turn status
 - invalid tension card or option choice
 - database connectivity failures
+
+Keep future validation paths on the same problem-details shape instead of returning ad hoc error payloads.

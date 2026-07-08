@@ -1,6 +1,4 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.FileProviders;
 using SandTable.Api;
 
 namespace SandTable.Api.Tests;
@@ -57,13 +55,4 @@ public class GameContentRepositoryTests
         throw new DirectoryNotFoundException("Could not locate SandTable.slnx.");
     }
 
-    private sealed class TestWebHostEnvironment : IWebHostEnvironment
-    {
-        public string ApplicationName { get; set; } = "SandTable.Api.Tests";
-        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
-        public string ContentRootPath { get; set; } = string.Empty;
-        public string EnvironmentName { get; set; } = "Development";
-        public string WebRootPath { get; set; } = string.Empty;
-        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
-    }
 }

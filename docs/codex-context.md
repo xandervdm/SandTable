@@ -93,6 +93,7 @@ Dev database smoke test:
 - `scripts/smoke-dev-api.ps1`
 - Requires `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.
 - Builds with temp artifacts, starts the API on localhost, creates a campaign, submits a command, resolves a turn, and chooses a generated tension option when available.
+- `tests/SandTable.Api.Tests/DevDatabaseSmokeTests.cs` also runs the Dapper service loop when the same env var is set; otherwise it returns without touching a database.
 
 ## Strategic Tension
 
@@ -140,8 +141,7 @@ If `.dotnet_cli_home_build` is created, remove it after verification.
 
 - Smoke-test the live Dapper API against `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.
 - Fix any SQL/API mismatch found by create campaign -> submit command -> resolve turn -> choose tension option.
-- Add DB smoke tests gated by environment variable.
-- Add command validation before inserting player commands.
-- Add API problem responses instead of ad hoc bad-request payloads.
-- Add read endpoints needed by the future React UI: theatre/scenario content, map state, units, events, and active tensions.
+- Add richer command validation for command-type-specific rules that are still deferred to the Engine.
+- Add explicit OpenAPI metadata/tags for the existing endpoints before frontend/API client generation.
+- Decide whether campaign event reads should default to ascending or newest-turn-first ordering for the React UI.
 - Keep OpenIddict as a staging prerequisite, separate from the early implicit dev user.
