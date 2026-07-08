@@ -86,8 +86,8 @@ public sealed class CampaignService(
                     EnemySide = initialState.EnemySide.ToString(),
                     CurrentTurnNumber = initialState.TurnNumber,
                     MaxTurns = initialState.MaxTurns,
-                    CampaignStartDate = initialState.CampaignDate,
-                    CurrentCampaignDate = initialState.CampaignDate,
+                    CampaignStartDate = ToDatabaseDate(initialState.CampaignDate),
+                    CurrentCampaignDate = ToDatabaseDate(initialState.CampaignDate),
                     Actor
                 },
                 transaction,
@@ -710,7 +710,7 @@ public sealed class CampaignService(
                     CampaignId = campaign.Id,
                     Status = campaignStatus,
                     CurrentTurnNumber = resolution.NextState.TurnNumber,
-                    CurrentCampaignDate = resolution.NextState.CampaignDate,
+                    CurrentCampaignDate = ToDatabaseDate(resolution.NextState.CampaignDate),
                     resolution.NextState.Result,
                     Actor
                 },
@@ -1138,6 +1138,11 @@ public sealed class CampaignService(
         var json = JsonSerializer.Serialize(state, ApiJson.SerializerOptions);
         var hashBytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json));
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
+    }
+
+    private static DateTime ToDatabaseDate(DateOnly date)
+    {
+        return date.ToDateTime(TimeOnly.MinValue);
     }
 
     private static string EventOrderSql(CampaignEventOrder order)

@@ -1,25 +1,34 @@
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using SandTable.Api;
 using SandTable.Engine;
+using Testcontainers.PostgreSql;
 
 namespace SandTable.Api.Tests;
 
-public class DevDatabaseSmokeTests
+public class DockerPostgresSmokeTests
 {
     [Fact]
     [Trait("Category", "DatabaseSmoke")]
-    public async Task Campaign_loop_persists_through_dapper_when_dev_database_is_configured()
+    public async Task Campaign_loop_persists_through_dapper_against_docker_postgres()
     {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("VULTR_POSTGRES_URL_SAND_TABLE_DEV")))
-        {
-            return;
-        }
+        await using var postgres = new PostgreSqlBuilder("postgres:16-alpine")
+            .WithDatabase("sandtable")
+            .WithUsername("sandtable")
+            .WithPassword("sandtable")
+            .Build();
 
-        var service = CreateCampaignService();
+        await postgres.StartAsync();
+
+        var connectionString = postgres.GetConnectionString();
+        var repoRoot = FindRepoRoot();
+        await ApplySchemaAsync(connectionString, repoRoot, CancellationToken.None);
+
+        var service = CreateCampaignService(connectionString, repoRoot);
         var cancellationToken = CancellationToken.None;
         var campaign = await service.CreateCampaignAsync(
             new CreateCampaignRequest(
-                $"Smoke Test Campaign {Guid.NewGuid():N}",
+                $"Docker Smoke Test Campaign {Guid.NewGuid():N}",
                 "north-africa-1942",
                 Side.Axis,
                 RandomSeed: 1942),
@@ -78,17 +87,54 @@ public class DevDatabaseSmokeTests
         }
     }
 
-    private static CampaignService CreateCampaignService()
+    private static async Task ApplySchemaAsync(
+        string connectionString,
+        string repoRoot,
+        CancellationToken cancellationToken)
     {
+        var files = new[]
+        {
+            "extensions.sql",
+            "user_account.sql",
+            "player_profile.sql",
+            "command_profile.sql",
+            "campaign.sql",
+            "campaign_turn.sql",
+            "campaign_snapshot.sql",
+            "campaign_command.sql",
+            "campaign_event.sql",
+            "career_record.sql"
+        };
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        foreach (var file in files)
+        {
+            var sqlPath = Path.Combine(repoRoot, "database", "public", file);
+            var sql = await File.ReadAllTextAsync(sqlPath, cancellationToken);
+            await using var command = new NpgsqlCommand(sql, connection);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private static CampaignService CreateCampaignService(string connectionString, string repoRoot)
+    {
+        var configuration = new ConfigurationManager();
+        configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:SandTableDatabase"] = connectionString
+        });
+
         var repository = new GameContentRepository(
-            new TestWebHostEnvironment { ContentRootPath = FindRepoRoot() },
+            new TestWebHostEnvironment { ContentRootPath = repoRoot },
             new ConfigurationManager());
         var effectApplier = new GameEffectApplier();
         var tensionChoiceResolver = new TensionChoiceResolver(effectApplier);
         var tensionGenerator = new BasicTensionGenerator();
 
         return new CampaignService(
-            new SandTableConnectionFactory(new ConfigurationManager()),
+            new SandTableConnectionFactory(configuration),
             new DevPlayerBootstrapper(),
             repository,
             new ScenarioFactory(),

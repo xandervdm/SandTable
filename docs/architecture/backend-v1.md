@@ -56,10 +56,11 @@ Each state-changing operation should:
 Minimal API endpoints use explicit names, tags, response metadata, request-body metadata, and `[FromServices]` service parameters in `src/SandTable.Api/SandTableEndpoints.cs`.
 This prepares the surface for OpenAPI/client generation without adding Swagger UI or an OpenAPI document package yet.
 
-## Dev Database Smoke Coverage
+## Database Smoke Coverage
 
-`tests/SandTable.Api.Tests/DevDatabaseSmokeTests.cs` is gated by `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.
-When the variable is absent, it returns without database access. When present, it creates a dev campaign through `CampaignService`, submits a command, resolves a turn, reads campaign state/events, and chooses a generated tension option when available.
+`tests/SandTable.Api.Tests/DockerPostgresSmokeTests.cs` starts a disposable PostgreSQL container through Docker/Testcontainers, applies the reviewed SQL files from `database/public`, creates a campaign through `CampaignService`, submits a command, resolves a turn, reads campaign state/events/turns, and chooses a generated tension option when available.
+
+Use the Docker-backed test for automated database confidence. Keep `VULTR_POSTGRES_URL_SAND_TABLE_DEV` for running the API locally during UI development and for optional hosted-environment smoke checks.
 
 ## Error Handling
 

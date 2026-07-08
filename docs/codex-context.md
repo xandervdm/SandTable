@@ -92,12 +92,13 @@ Manual samples live in:
 
 - `src/SandTable.Api/SandTable.Api.http`
 
-Dev database smoke test:
+Database smoke paths:
 
 - `scripts/smoke-dev-api.ps1`
 - Requires `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.
-- Builds with temp artifacts, starts the API on localhost, creates a campaign, submits a command, resolves a turn, and chooses a generated tension option when available.
-- `tests/SandTable.Api.Tests/DevDatabaseSmokeTests.cs` also runs the Dapper service loop when the same env var is set; otherwise it returns without touching a database.
+- Builds with temp artifacts, starts the API on localhost, creates a campaign, submits a command, resolves a turn, and chooses a generated tension option when available against the hosted development database.
+- `tests/SandTable.Api.Tests/DockerPostgresSmokeTests.cs`
+- Uses Docker/Testcontainers to start a disposable PostgreSQL database, applies the SQL files from `database/public`, then runs the Dapper campaign loop without touching Vultr.
 
 ## Strategic Tension
 
@@ -143,7 +144,8 @@ If `.dotnet_cli_home_build` is created, remove it after verification.
 
 ## Next Likely Priorities
 
-- Smoke-test the live Dapper API against `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.
+- Keep the Docker-backed database smoke test green as SQL/API changes land.
+- Use `VULTR_POSTGRES_URL_SAND_TABLE_DEV` for local API runs during UI development and occasional hosted smoke checks.
 - Fix any SQL/API mismatch found by create campaign -> submit command -> resolve turn -> choose tension option.
 - Decide when to add an actual OpenAPI document endpoint/package once frontend client generation starts.
 - Keep tightening command validation as new command payload fields or costs are introduced.

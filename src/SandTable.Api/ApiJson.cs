@@ -8,6 +8,7 @@ internal static class ApiJson
     public static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true,
+        AllowOutOfOrderMetadataProperties = true,
         WriteIndented = false,
         Converters = { new JsonStringEnumConverter() }
     };
