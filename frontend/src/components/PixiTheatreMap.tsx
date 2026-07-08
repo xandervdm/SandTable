@@ -34,6 +34,16 @@ interface ViewportTransform {
   y: number;
 }
 
+interface PixiSceneLayers {
+  world: Container;
+  background: Container;
+  routes: Container;
+  regionHits: Container;
+  mode: Container;
+  labels: Container;
+  units: Container;
+}
+
 interface ResolvedRegionDisplay {
   labelOffset: { x: number; y: number };
   hitArea: { rx: number; ry: number };
@@ -41,8 +51,8 @@ interface ResolvedRegionDisplay {
   stackDirection: string;
 }
 
-const UNIT_COUNTER_WIDTH = 38;
-const UNIT_COUNTER_HEIGHT = 32;
+const UNIT_COUNTER_WIDTH = 40;
+const UNIT_COUNTER_HEIGHT = 34;
 const REGION_HIT_RADIUS_X = 44;
 const REGION_HIT_RADIUS_Y = 30;
 const DEFAULT_REGION_DISPLAY: ResolvedRegionDisplay = {
@@ -66,7 +76,9 @@ export function PixiTheatreMap({
 }: PixiTheatreMapProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
+  const layersRef = useRef<PixiSceneLayers | null>(null);
   const latestPropsRef = useRef<PixiTheatreMapProps | null>(null);
+  const staticWorldKeyRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -94,10 +106,12 @@ export function PixiTheatreMap({
       app.canvas.className = "pixi-theatre-map-canvas";
       host.appendChild(app.canvas);
       appRef.current = app;
+      const layers = createSceneLayers(app);
+      layersRef.current = layers;
       setIsReady(true);
       const latestProps = latestPropsRef.current;
       if (latestProps) {
-        renderPixiScene(host, app, latestProps);
+        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef);
       }
     });
 
@@ -105,7 +119,9 @@ export function PixiTheatreMap({
       cancelled = true;
       setIsReady(false);
       appRef.current = null;
+      layersRef.current = null;
       latestPropsRef.current = null;
+      staticWorldKeyRef.current = null;
       if (initialized) {
         app.destroy(true, { children: true });
       }
@@ -121,14 +137,16 @@ export function PixiTheatreMap({
 
     const resizeObserver = new ResizeObserver(() => {
       const latestProps = latestPropsRef.current;
-      if (latestProps) {
-        renderPixiScene(host, app, latestProps);
+      const layers = layersRef.current;
+      if (latestProps && layers) {
+        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef);
       }
     });
     resizeObserver.observe(host);
     const latestProps = latestPropsRef.current;
-    if (latestProps) {
-      renderPixiScene(host, app, latestProps);
+    const layers = layersRef.current;
+    if (latestProps && layers) {
+      renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef);
     }
 
     return () => resizeObserver.disconnect();
@@ -148,9 +166,10 @@ export function PixiTheatreMap({
 
       const host = hostRef.current;
       const app = appRef.current;
+      const layers = layersRef.current;
       const latestProps = latestPropsRef.current;
-      if (host && app && latestProps) {
-        renderPixiScene(host, app, latestProps);
+      if (host && app && layers && latestProps) {
+        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef);
       }
     });
 
@@ -162,7 +181,8 @@ export function PixiTheatreMap({
   useEffect(() => {
     const host = hostRef.current;
     const app = appRef.current;
-    if (!host || !app || !isReady) {
+    const layers = layersRef.current;
+    if (!host || !app || !layers || !isReady) {
       return;
     }
 
@@ -179,7 +199,7 @@ export function PixiTheatreMap({
       onRegionSelect
     };
     latestPropsRef.current = props;
-    renderPixiScene(host, app, props);
+    renderPixiScene(host, app, layers, props, staticWorldKeyRef);
   }, [
     isReady,
     map,
@@ -204,24 +224,83 @@ export function PixiTheatreMap({
   );
 }
 
-function renderPixiScene(host: HTMLDivElement, app: Application, props: PixiTheatreMapProps) {
-  for (const child of app.stage.removeChildren()) {
-    child.destroy({ children: true });
+function createSceneLayers(app: Application): PixiSceneLayers {
+  const world = new Container();
+  world.label = "theatre-map-world";
+  world.eventMode = "passive";
+
+  const background = createLayer("theatre-map-background");
+  const routes = createLayer("theatre-map-routes");
+  const regionHits = createLayer("theatre-map-region-hits");
+  const mode = createLayer("theatre-map-mode");
+  const labels = createLayer("theatre-map-labels");
+  const units = createLayer("theatre-map-units");
+
+  world.addChild(background, routes, regionHits, mode);
+  app.stage.addChild(world, labels, units);
+
+  return { world, background, routes, regionHits, mode, labels, units };
+}
+
+function createLayer(label: string) {
+  const layer = new Container();
+  layer.label = label;
+  layer.eventMode = "passive";
+  return layer;
+}
+
+function renderPixiScene(
+  host: HTMLDivElement,
+  app: Application,
+  layers: PixiSceneLayers,
+  props: PixiTheatreMapProps,
+  staticWorldKeyRef: { current: string | null }
+) {
+  const transform = fitViewport(host, app, layers.world, props.map);
+  const regionStates = new Map(props.state.regions.map((region) => [region.id, region]));
+  const routes = resolvePlayableRoutes(props.map);
+  const staticWorldKey = resolveStaticWorldKey(props, regionStates);
+
+  if (staticWorldKeyRef.current !== staticWorldKey) {
+    clearLayer(layers.background);
+    clearLayer(layers.routes);
+    drawBackground(layers.background, props.map, props.display);
+    drawRoutes(layers.routes, routes, props, { highlightsOnly: false });
+    staticWorldKeyRef.current = staticWorldKey;
   }
 
-  const worldLayer = new Container();
-  worldLayer.label = "theatre-map-world";
-  worldLayer.eventMode = "passive";
-  app.stage.addChild(worldLayer);
+  clearLayer(layers.regionHits);
+  drawRegionHitAreas(layers.regionHits, props.map, regionStates, props);
 
-  const overlayLayer = new Container();
-  overlayLayer.label = "theatre-map-overlay";
-  overlayLayer.eventMode = "passive";
-  app.stage.addChild(overlayLayer);
+  clearLayer(layers.mode);
+  drawRoutes(layers.mode, routes, props, { highlightsOnly: true });
+  drawRegionModeOverlays(layers.mode, props.map, props);
 
-  drawWorldScene(worldLayer, props);
-  const transform = fitViewport(host, app, worldLayer, props.map);
-  drawScreenOverlay(overlayLayer, transform, props);
+  clearLayer(layers.labels);
+  clearLayer(layers.units);
+  drawScreenOverlay(layers, transform, props);
+}
+
+function clearLayer(layer: Container) {
+  for (const child of layer.removeChildren()) {
+    child.destroy({ children: true });
+  }
+}
+
+function resolveStaticWorldKey(
+  props: PixiTheatreMapProps,
+  regionStates: Map<string, { owner: Side; victoryPoints: number; features: string[] }>
+) {
+  return JSON.stringify({
+    theatreId: props.map.theatreId,
+    size: props.map.coordinateSystem,
+    background: props.display?.backgroundImage?.url ?? null,
+    routes: props.map.routes,
+    owners: props.map.regions.map((region) => ({
+      id: region.id,
+      owner: regionStates.get(region.id)?.owner ?? region.owner
+    }))
+  });
 }
 
 function fitViewport(host: HTMLDivElement, app: Application, viewport: Container, map: MapDefinition): ViewportTransform {
@@ -237,16 +316,6 @@ function fitViewport(host: HTMLDivElement, app: Application, viewport: Container
   viewport.scale.set(scale);
   viewport.position.set(x, y);
   return { scale, x, y };
-}
-
-function drawWorldScene(viewport: Container, props: PixiTheatreMapProps) {
-  const { map, state } = props;
-  const routes = resolvePlayableRoutes(map);
-  const regionStates = new Map(state.regions.map((region) => [region.id, region]));
-
-  drawBackground(viewport, map, props.display);
-  drawRoutes(viewport, routes, props);
-  drawRegionOverlays(viewport, map, regionStates, props);
 }
 
 function drawBackground(viewport: Container, map: MapDefinition, display: MapDisplayDefinition | null | undefined) {
@@ -338,9 +407,12 @@ function drawBackground(viewport: Container, map: MapDefinition, display: MapDis
   viewport.addChild(background);
 }
 
-function drawRoutes(viewport: Container, routes: PlayableRoute[], props: PixiTheatreMapProps) {
-  const routeLayer = new Container();
-
+function drawRoutes(
+  viewport: Container,
+  routes: PlayableRoute[],
+  props: PixiTheatreMapProps,
+  options: { highlightsOnly: boolean }
+) {
   for (const route of routes) {
     const selected = Boolean(
       props.selectedUnitRegionId &&
@@ -352,7 +424,13 @@ function drawRoutes(viewport: Container, routes: PlayableRoute[], props: PixiThe
         (route.from.id === props.selectedTargetRegionId || route.to.id === props.selectedTargetRegionId) &&
         (route.from.id === props.selectedUnitRegionId || route.to.id === props.selectedUnitRegionId)
     );
-    const routeStyle = routeStyleFor(route.routeType, selected, target);
+    if (options.highlightsOnly && !selected && !target) {
+      continue;
+    }
+
+    const emphasizedSelected = options.highlightsOnly ? selected : false;
+    const emphasizedTarget = options.highlightsOnly ? target : false;
+    const routeStyle = routeStyleFor(route.routeType, emphasizedSelected, emphasizedTarget);
     const routeGraphic = new Graphics();
 
     routeGraphic
@@ -365,51 +443,34 @@ function drawRoutes(viewport: Container, routes: PlayableRoute[], props: PixiThe
       .stroke({ width: routeStyle.width, color: routeStyle.color, alpha: routeStyle.alpha, cap: "round" });
 
     if (route.routeType === "Railroad") {
-      drawRailTicks(routeGraphic, route.from, route.to, selected || target);
+      drawRailTicks(routeGraphic, route.from, route.to, emphasizedSelected || emphasizedTarget);
     }
 
-    routeLayer.addChild(routeGraphic);
+    viewport.addChild(routeGraphic);
   }
-
-  viewport.addChild(routeLayer);
 }
 
-function drawRegionOverlays(
+function drawRegionHitAreas(
   viewport: Container,
   map: MapDefinition,
   regionStates: Map<string, { owner: Side; victoryPoints: number; features: string[] }>,
   props: PixiTheatreMapProps
 ) {
-  const regionLayer = new Container();
-
   for (const region of map.regions) {
     const stateRegion = regionStates.get(region.id);
     const owner = stateRegion?.owner ?? region.owner;
-    const valid = props.validTargetIds.includes(region.id);
-    const target = props.selectedTargetRegionId === region.id;
-    const source = props.selectedUnitRegionId === region.id;
     const ownerColor = colorForSide(owner);
     const regionGraphic = new Graphics();
-    const highlight = source || target || valid;
     const display = resolveRegionDisplay(props.display, region.id);
 
     regionGraphic
       .ellipse(region.position.x, region.position.y, display.hitArea.rx, display.hitArea.ry)
-      .fill({ color: ownerColor.fill, alpha: source || target ? 0.14 : valid ? 0.11 : 0.045 })
+      .fill({ color: ownerColor.fill, alpha: 0.045 })
       .stroke({
-        width: source || target ? 3 : valid ? 2.4 : 1.2,
-        color: source || target ? 0xffefad : valid ? 0xf8d77d : ownerColor.stroke,
-        alpha: source || target ? 0.9 : valid ? 0.72 : 0.34
+        width: 1.2,
+        color: ownerColor.stroke,
+        alpha: 0.34
       });
-    if (highlight) {
-      regionGraphic
-        .ellipse(region.position.x, region.position.y, display.hitArea.rx + 9, display.hitArea.ry + 7)
-        .stroke({
-          width: source || target ? 2.4 : 1.5,
-          color: source || target ? 0xfff2b8 : 0xf8d77d,
-          alpha: source || target ? 0.42 : 0.28
-        });
-    }
     regionGraphic
       .circle(region.position.x, region.position.y, 4)
       .fill({ color: 0xf2ddb0, alpha: 0.86 })
@@ -418,19 +479,48 @@ function drawRegionOverlays(
     regionGraphic.cursor = "pointer";
     regionGraphic.on("pointertap", () => props.onRegionSelect(region.id));
 
-    regionLayer.addChild(regionGraphic);
+    viewport.addChild(regionGraphic);
   }
-
-  viewport.addChild(regionLayer);
 }
 
-function drawScreenOverlay(viewport: Container, transform: ViewportTransform, props: PixiTheatreMapProps) {
+function drawRegionModeOverlays(viewport: Container, map: MapDefinition, props: PixiTheatreMapProps) {
+  for (const region of map.regions) {
+    const valid = props.validTargetIds.includes(region.id);
+    const target = props.selectedTargetRegionId === region.id;
+    const source = props.selectedUnitRegionId === region.id;
+    if (!source && !target && !valid) {
+      continue;
+    }
+
+    const display = resolveRegionDisplay(props.display, region.id);
+    const regionGraphic = new Graphics();
+    regionGraphic
+      .ellipse(region.position.x, region.position.y, display.hitArea.rx, display.hitArea.ry)
+      .fill({ color: source || target ? 0xffefad : 0xf8d77d, alpha: source || target ? 0.15 : 0.1 })
+      .stroke({
+        width: source || target ? 3 : 2.3,
+        color: source || target ? 0xffefad : 0xf8d77d,
+        alpha: source || target ? 0.95 : 0.72
+      });
+    regionGraphic
+      .ellipse(region.position.x, region.position.y, display.hitArea.rx + 9, display.hitArea.ry + 7)
+      .stroke({
+        width: source || target ? 2.3 : 1.5,
+        color: source || target ? 0xfff2b8 : 0xf8d77d,
+        alpha: source || target ? 0.43 : 0.28
+      });
+
+    viewport.addChild(regionGraphic);
+  }
+}
+
+function drawScreenOverlay(layers: PixiSceneLayers, transform: ViewportTransform, props: PixiTheatreMapProps) {
   const regionDefinitions = new Map(props.map.regions.map((region) => [region.id, region]));
   const regionStates = new Map(props.state.regions.map((region) => [region.id, region]));
   const unitsByRegion = groupUnitsByRegion(props.state.units);
 
-  drawRegionLabels(viewport, transform, props.map, regionStates, props);
-  drawUnits(viewport, transform, regionDefinitions, unitsByRegion, props);
+  drawRegionLabels(layers.labels, transform, props.map, regionStates, props);
+  drawUnits(layers.units, transform, regionDefinitions, unitsByRegion, props);
 }
 
 function drawRegionLabels(
@@ -479,33 +569,26 @@ function drawUnits(
     }
 
     const display = resolveRegionDisplay(props.display, region.id);
-    const slots = resolveUnitSlotPositions(units.length, display.stackDirection);
     const anchorX = region.position.x + display.counterAnchor.x;
     const anchorY = region.position.y + display.counterAnchor.y;
+    const stackPosition = worldToScreen(transform, anchorX, anchorY);
+    const visibleUnits = resolveVisibleStackUnits(units, props.selectedUnitId);
+
     if (units.length > 1) {
-      const stackBase = new Graphics();
-      const stackWidth = display.stackDirection === "column"
-        ? UNIT_COUNTER_WIDTH + 18
-        : Math.min(118, Math.max(54, slots.length * 40 - 2));
-      const stackHeight = display.stackDirection === "column"
-        ? Math.min(118, Math.max(42, slots.length * 30 + 4))
-        : 40;
-      const stackPosition = worldToScreen(transform, anchorX, anchorY);
-      stackBase
-        .roundRect(stackPosition.x - stackWidth / 2, stackPosition.y - stackHeight / 2, stackWidth, stackHeight, 6)
-        .fill({ color: 0x12100c, alpha: 0.26 })
-        .stroke({ width: 1.2, color: 0xf0d28a, alpha: 0.18 });
-      unitLayer.addChild(stackBase);
+      const stackBackplates = createStackBackplates(visibleUnits[0].side, units.length, display.stackDirection);
+      stackBackplates.position.set(stackPosition.x, stackPosition.y);
+      stackBackplates.eventMode = "static";
+      stackBackplates.cursor = "pointer";
+      stackBackplates.on("pointertap", () => props.onRegionSelect(region.id));
+      unitLayer.addChild(stackBackplates);
     }
 
-    for (const [index, unit] of units.slice(0, slots.length).entries()) {
-      const slot = slots[index];
+    for (const unit of visibleUnits) {
       const counter = createUnitCounter(unit, {
         selected: unit.id === props.selectedUnitId,
         planned: props.plannedUnitIds.includes(unit.id)
       });
-      const position = worldToScreen(transform, anchorX + slot.x, anchorY + slot.y);
-      counter.position.set(position.x, position.y);
+      counter.position.set(stackPosition.x, stackPosition.y);
       counter.eventMode = "static";
       counter.cursor = "pointer";
       counter.on("pointertap", (event) => {
@@ -515,21 +598,13 @@ function drawUnits(
       unitLayer.addChild(counter);
     }
 
-    if (units.length > slots.length) {
-      const overflow = new Text({
-        text: `+${units.length - slots.length}`,
-        style: {
-          fill: 0xfff0b0,
-          fontFamily: "Inter, Arial, sans-serif",
-          fontSize: 14,
-          fontWeight: "900",
-          stroke: { color: 0x20160d, width: 3 }
-        },
-        anchor: 0.5
-      });
-      const overflowPosition = worldToScreen(transform, anchorX + 48, anchorY);
-      overflow.position.set(overflowPosition.x, overflowPosition.y);
-      unitLayer.addChild(overflow);
+    if (units.length > 1) {
+      const countBadge = createStackCountBadge(units.length);
+      countBadge.position.set(
+        stackPosition.x + UNIT_COUNTER_WIDTH / 2 - 1,
+        stackPosition.y - UNIT_COUNTER_HEIGHT / 2 + 1
+      );
+      unitLayer.addChild(countBadge);
     }
   }
 
@@ -587,51 +662,195 @@ function createRegionLabel(region: RegionDefinition, victoryPoints: number, emph
 function createUnitCounter(unit: UnitState, state: { selected: boolean; planned: boolean }) {
   const counter = new Container();
   const colors = colorForSide(unit.side);
+  const textColor = unit.side === "Allies" ? 0xf4fbff : 0x17120c;
+  const headerTextColor = unit.side === "Allies" ? 0xf4fbff : 0xf8e6b4;
   const body = new Graphics();
   const width = UNIT_COUNTER_WIDTH;
   const height = UNIT_COUNTER_HEIGHT;
 
+  const shadow = new Graphics();
+  shadow
+    .roundRect(-width / 2 + 2, -height / 2 + 3, width, height, 4)
+    .fill({ color: 0x060503, alpha: 0.38 });
+
+  if (state.selected) {
+    const glow = new Graphics();
+    glow
+      .roundRect(-width / 2 - 4, -height / 2 - 4, width + 8, height + 8, 7)
+      .fill({ color: 0xffe9a6, alpha: 0.1 })
+      .stroke({ width: 2.2, color: 0xfff1a8, alpha: 0.92 });
+    counter.addChild(glow);
+  }
+
   body
-    .roundRect(-width / 2, -height / 2, width, height, 5)
+    .roundRect(-width / 2, -height / 2, width, height, 4)
     .fill({ color: colors.counterFill, alpha: 1 })
     .stroke({
-      width: state.selected ? 3 : 1.8,
+      width: state.selected ? 2.5 : 1.6,
       color: state.selected ? 0xfff1a8 : colors.counterStroke,
       alpha: 1
     });
+  body
+    .roundRect(-width / 2 + 3, -height / 2 + 3, width - 6, 11, 3)
+    .fill({ color: colors.counterHeaderFill, alpha: 0.94 });
+  body
+    .moveTo(-width / 2 + 5, -height / 2 + 15)
+    .lineTo(width / 2 - 5, -height / 2 + 15)
+    .stroke({ width: 1.2, color: colors.counterStroke, alpha: 0.5 });
 
   if (state.planned) {
     body
       .roundRect(-width / 2 - 3, -height / 2 - 3, width + 6, height + 6, 7)
-      .stroke({ width: 1.8, color: 0xffdf7f, alpha: 0.72 });
+      .stroke({ width: 2, color: 0xffdf7f, alpha: 0.82 });
+    body
+      .moveTo(width / 2 - 11, -height / 2 - 3)
+      .lineTo(width / 2 + 3, -height / 2 - 3)
+      .lineTo(width / 2 + 3, -height / 2 + 11)
+      .closePath()
+      .fill({ color: 0xffdf7f, alpha: 0.9 });
   }
 
   const code = new Text({
     text: unitCode(unit),
     style: {
-      fill: unit.side === "Allies" ? 0xf4fbff : 0x19130b,
+      fill: headerTextColor,
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: 8,
+      fontSize: 7,
       fontWeight: "900"
     },
     anchor: 0.5
   });
-  code.position.set(0, -6);
+  code.position.set(0, -11);
 
   const strength = new Text({
     text: String(unit.strength),
     style: {
-      fill: unit.side === "Allies" ? 0xf4fbff : 0x19130b,
+      fill: textColor,
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: 15,
+      fontSize: 14,
+      fontWeight: "900",
+      stroke: { color: unit.side === "Allies" ? 0x163044 : 0xe2c271, width: 1 }
+    },
+    anchor: 0.5
+  });
+  strength.position.set(0, 10);
+
+  const symbol = createUnitTypeSymbol(unit, textColor);
+  symbol.position.set(0, 0);
+
+  counter.addChild(shadow, body, code, symbol, strength);
+  if (unit.status === "Disrupted") {
+    const status = new Graphics();
+    status
+      .moveTo(-width / 2 + 5, height / 2 - 5)
+      .lineTo(width / 2 - 5, -height / 2 + 18)
+      .stroke({ width: 2.2, color: 0x8b1d16, alpha: 0.9, cap: "round" });
+    const statusText = new Text({
+      text: "D",
+      style: {
+        fill: 0xffeee0,
+        fontFamily: "Arial, Helvetica, sans-serif",
+        fontSize: 8,
+        fontWeight: "900"
+      },
+      anchor: 0.5
+    });
+    statusText.position.set(width / 2 - 6, height / 2 - 6);
+    counter.addChild(status, statusText);
+  }
+  return counter;
+}
+
+function createUnitTypeSymbol(unit: UnitState, color: number) {
+  const symbol = new Graphics();
+  if (unit.type === "Armour") {
+    symbol
+      .roundRect(-8, -3.5, 16, 7, 4)
+      .stroke({ width: 1.6, color, alpha: 0.9 })
+      .moveTo(-4.5, 0)
+      .lineTo(4.5, 0)
+      .stroke({ width: 1.3, color, alpha: 0.8, cap: "round" });
+    return symbol;
+  }
+
+  if (unit.type === "Infantry") {
+    symbol
+      .moveTo(-6, -4.5)
+      .lineTo(6, 4.5)
+      .moveTo(6, -4.5)
+      .lineTo(-6, 4.5)
+      .stroke({ width: 1.7, color, alpha: 0.9, cap: "round" });
+    return symbol;
+  }
+
+  if (unit.type === "Logistics") {
+    symbol
+      .rect(-6.5, -4.5, 13, 9)
+      .stroke({ width: 1.6, color, alpha: 0.9 })
+      .moveTo(-2.5, -4.5)
+      .lineTo(-2.5, 4.5)
+      .moveTo(2.5, -4.5)
+      .lineTo(2.5, 4.5)
+      .stroke({ width: 1.2, color, alpha: 0.65 });
+    return symbol;
+  }
+
+  symbol
+    .moveTo(-8, 1)
+    .lineTo(0, -4.5)
+    .lineTo(8, 1)
+    .moveTo(-5.5, 4)
+    .lineTo(0, 0)
+    .lineTo(5.5, 4)
+    .stroke({ width: 1.7, color, alpha: 0.9, cap: "round", join: "round" });
+  return symbol;
+}
+
+function createStackBackplates(side: Side, count: number, stackDirection: string) {
+  const stack = new Container();
+  const colors = colorForSide(side);
+  const visiblePlateCount = Math.min(count - 1, 3);
+  const direction = stackDirection === "column" ? { x: 0, y: 4 } : { x: -4, y: 3 };
+
+  for (let index = visiblePlateCount; index >= 1; index -= 1) {
+    const offsetX = direction.x * index;
+    const offsetY = direction.y * index;
+    const plate = new Graphics();
+    plate
+      .roundRect(
+        -UNIT_COUNTER_WIDTH / 2 + offsetX,
+        -UNIT_COUNTER_HEIGHT / 2 + offsetY,
+        UNIT_COUNTER_WIDTH,
+        UNIT_COUNTER_HEIGHT,
+        4
+      )
+      .fill({ color: colors.counterFill, alpha: 0.82 })
+      .stroke({ width: 1.2, color: colors.counterStroke, alpha: 0.78 });
+    stack.addChild(plate);
+  }
+
+  return stack;
+}
+
+function createStackCountBadge(count: number) {
+  const badge = new Container();
+  const body = new Graphics();
+  body
+    .circle(0, 0, 9)
+    .fill({ color: 0x17120b, alpha: 0.92 })
+    .stroke({ width: 1.4, color: 0xf3d99a, alpha: 0.82 });
+  const text = new Text({
+    text: String(count),
+    style: {
+      fill: 0xffe7a0,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      fontSize: 10,
       fontWeight: "900"
     },
     anchor: 0.5
   });
-  strength.position.set(0, 8);
-
-  counter.addChild(body, code, strength);
-  return counter;
+  badge.addChild(body, text);
+  return badge;
 }
 
 function drawRailTicks(graphic: Graphics, from: RegionDefinition, to: RegionDefinition, emphasized: boolean) {
@@ -678,7 +897,8 @@ function colorForSide(side: Side) {
     return {
       fill: 0xc9993e,
       stroke: 0x75511d,
-      counterFill: 0xb99c56,
+      counterFill: 0xc2a150,
+      counterHeaderFill: 0x3a2a13,
       counterStroke: 0x302614
     };
   }
@@ -687,7 +907,8 @@ function colorForSide(side: Side) {
     return {
       fill: 0x517f96,
       stroke: 0x244a60,
-      counterFill: 0x315b78,
+      counterFill: 0x2f6d93,
+      counterHeaderFill: 0x17364f,
       counterStroke: 0xc7d8df
     };
   }
@@ -696,6 +917,7 @@ function colorForSide(side: Side) {
     fill: 0xb8aa83,
     stroke: 0x766f5b,
     counterFill: 0xb8aa83,
+    counterHeaderFill: 0x504936,
     counterStroke: 0x3d382c
   };
 }
@@ -732,38 +954,13 @@ function edgeKey(firstRegionId: string, secondRegionId: string) {
   return [firstRegionId, secondRegionId].sort().join("::");
 }
 
-function resolveUnitSlotPositions(count: number, stackDirection: string) {
-  if (count <= 1) {
-    return [{ x: 0, y: 0 }];
+function resolveVisibleStackUnits(units: UnitState[], selectedUnitId: string | null) {
+  if (units.length <= 1) {
+    return units;
   }
 
-  if (stackDirection === "column") {
-    const visibleCount = Math.min(count, 4);
-    const startY = -((visibleCount - 1) * 25) / 2;
-    return Array.from({ length: visibleCount }, (_, index) => ({ x: 0, y: startY + index * 25 }));
-  }
-
-  if (count === 2) {
-    return [
-      { x: -20, y: 0 },
-      { x: 20, y: 0 }
-    ];
-  }
-
-  if (count === 3) {
-    return [
-      { x: -39, y: 0 },
-      { x: 0, y: 0 },
-      { x: 39, y: 0 }
-    ];
-  }
-
-  return [
-    { x: -22, y: -18 },
-    { x: 22, y: -18 },
-    { x: -22, y: 18 },
-    { x: 22, y: 18 }
-  ];
+  const selectedUnit = units.find((unit) => unit.id === selectedUnitId);
+  return [selectedUnit ?? units[0]];
 }
 
 function resolveRegionDisplay(display: MapDisplayDefinition | null | undefined, regionId: string): ResolvedRegionDisplay {

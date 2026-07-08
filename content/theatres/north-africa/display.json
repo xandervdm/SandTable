@@ -36,7 +36,7 @@
     "tripoli": {
       "labelOffset": { "x": 0, "y": -45 },
       "hitArea": { "rx": 50, "ry": 34 },
-      "counterAnchor": { "x": 0, "y": 58 },
+      "counterAnchor": { "x": 44, "y": 58 },
       "stackDirection": "row"
     },
     "fezzan-desert": {
