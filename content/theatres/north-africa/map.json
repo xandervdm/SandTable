@@ -15,7 +15,12 @@
       "victoryPoints": 3,
       "supplyValue": 2,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["algiers"]
+      "adjacentRegionIds": ["algiers"],
+      "visual": {
+        "labelOffset": { "x": 0, "y": -24 },
+        "unitStackOffset": { "x": 0, "y": 58 },
+        "unitStackColumns": 2
+      }
     },
     {
       "id": "algiers",
@@ -26,7 +31,12 @@
       "victoryPoints": 4,
       "supplyValue": 2,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["casablanca", "tunis", "kasserine-pass"]
+      "adjacentRegionIds": ["casablanca", "tunis", "kasserine-pass"],
+      "visual": {
+        "labelOffset": { "x": 0, "y": -25 },
+        "unitStackOffset": { "x": 0, "y": 62 },
+        "unitStackColumns": 2
+      }
     },
     {
       "id": "tunis",
@@ -37,7 +47,12 @@
       "victoryPoints": 6,
       "supplyValue": 2,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["algiers", "kasserine-pass", "tripoli"]
+      "adjacentRegionIds": ["algiers", "kasserine-pass", "tripoli"],
+      "visual": {
+        "labelOffset": { "x": 0, "y": -25 },
+        "unitStackOffset": { "x": 0, "y": 58 },
+        "unitStackColumns": 2
+      }
     },
     {
       "id": "kasserine-pass",
@@ -48,7 +63,12 @@
       "victoryPoints": 4,
       "supplyValue": 0,
       "features": [],
-      "adjacentRegionIds": ["algiers", "tunis", "fezzan-desert"]
+      "adjacentRegionIds": ["algiers", "tunis", "fezzan-desert"],
+      "visual": {
+        "labelOffset": { "x": 0, "y": -25 },
+        "unitStackOffset": { "x": 0, "y": 58 },
+        "unitStackColumns": 2
+      }
     },
     {
       "id": "tripoli",
@@ -59,7 +79,12 @@
       "victoryPoints": 8,
       "supplyValue": 3,
       "features": ["Port", "Airfield", "City"],
-      "adjacentRegionIds": ["tunis", "fezzan-desert", "benghazi"]
+      "adjacentRegionIds": ["tunis", "fezzan-desert", "benghazi"],
+      "visual": {
+        "labelOffset": { "x": 0, "y": -27 },
+        "unitStackOffset": { "x": 0, "y": 58 },
+        "unitStackColumns": 2
+      }
     },
     {
       "id": "fezzan-desert",
@@ -70,7 +95,12 @@
       "victoryPoints": 1,
       "supplyValue": 0,
       "features": [],
-      "adjacentRegionIds": ["kasserine-pass", "tripoli", "benghazi"]
+      "adjacentRegionIds": ["kasserine-pass", "tripoli", "benghazi"],
+      "visual": {
+        "labelOffset": { "x": 0, "y": -27 },
+        "unitStackOffset": { "x": 0, "y": 58 },
+        "unitStackColumns": 2
+      }
     },
     {
       "id": "benghazi",
@@ -81,7 +111,13 @@
       "victoryPoints": 6,
       "supplyValue": 2,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["tripoli", "fezzan-desert", "gazala"]
+      "adjacentRegionIds": ["tripoli", "fezzan-desert", "gazala"],
+      "visual": {
+        "labelOffset": { "x": -26, "y": -50 },
+        "labelAnchor": "end",
+        "unitStackOffset": { "x": 0, "y": -58 },
+        "unitStackColumns": 1
+      }
     },
     {
       "id": "gazala",
@@ -92,7 +128,14 @@
       "victoryPoints": 4,
       "supplyValue": 0,
       "features": ["Fortified"],
-      "adjacentRegionIds": ["benghazi", "tobruk"]
+      "adjacentRegionIds": ["benghazi", "tobruk"],
+      "visual": {
+        "labelOffset": { "x": -12, "y": 52 },
+        "labelAnchor": "end",
+        "unitStackOffset": { "x": 0, "y": -58 },
+        "unitStackColumns": 2,
+        "featureOffset": { "x": 38, "y": 43 }
+      }
     },
     {
       "id": "tobruk",
@@ -103,7 +146,13 @@
       "victoryPoints": 8,
       "supplyValue": 2,
       "features": ["Port", "Fortified"],
-      "adjacentRegionIds": ["gazala", "el-alamein"]
+      "adjacentRegionIds": ["gazala", "el-alamein"],
+      "visual": {
+        "labelOffset": { "x": 0, "y": -36 },
+        "unitStackOffset": { "x": 0, "y": -58 },
+        "unitStackColumns": 1,
+        "featureOffset": { "x": -10, "y": 48 }
+      }
     },
     {
       "id": "el-alamein",
@@ -114,7 +163,14 @@
       "victoryPoints": 7,
       "supplyValue": 1,
       "features": ["Airfield"],
-      "adjacentRegionIds": ["tobruk", "alexandria"]
+      "adjacentRegionIds": ["tobruk", "alexandria"],
+      "visual": {
+        "labelOffset": { "x": -42, "y": 58 },
+        "labelAnchor": "end",
+        "unitStackOffset": { "x": 0, "y": 58 },
+        "unitStackColumns": 2,
+        "featureOffset": { "x": -28, "y": 46 }
+      }
     },
     {
       "id": "alexandria",
@@ -125,7 +181,14 @@
       "victoryPoints": 12,
       "supplyValue": 3,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["el-alamein", "cairo"]
+      "adjacentRegionIds": ["el-alamein", "cairo"],
+      "visual": {
+        "labelOffset": { "x": -18, "y": -27 },
+        "labelAnchor": "end",
+        "unitStackOffset": { "x": -58, "y": 0 },
+        "unitStackColumns": 1,
+        "featureOffset": { "x": -20, "y": 45 }
+      }
     },
     {
       "id": "cairo",
@@ -136,7 +199,13 @@
       "victoryPoints": 10,
       "supplyValue": 2,
       "features": ["City", "SupplyDepot"],
-      "adjacentRegionIds": ["alexandria"]
+      "adjacentRegionIds": ["alexandria"],
+      "visual": {
+        "labelOffset": { "x": 22, "y": -45 },
+        "unitStackOffset": { "x": -58, "y": 0 },
+        "unitStackColumns": 1,
+        "featureOffset": { "x": -28, "y": 47 }
+      }
     }
   ],
   "routes": [

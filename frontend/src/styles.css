@@ -391,15 +391,15 @@ button:disabled {
 }
 
 .adjacency-routes line {
-  stroke: rgba(70, 48, 27, 0.42);
-  stroke-width: 2.5;
+  stroke: rgba(70, 48, 27, 0.34);
+  stroke-width: 2;
   stroke-dasharray: 2 10;
   stroke-linecap: round;
 }
 
 .routes line {
-  stroke: rgba(58, 43, 29, 0.65);
-  stroke-width: 4;
+  stroke: rgba(58, 43, 29, 0.58);
+  stroke-width: 3.5;
   stroke-dasharray: 8 8;
   stroke-linecap: round;
 }
@@ -417,7 +417,7 @@ button:disabled {
 .region-node ellipse {
   fill: rgba(239, 215, 158, 0.2);
   stroke: rgba(82, 67, 43, 0.23);
-  stroke-width: 2;
+  stroke-width: 1.5;
 }
 
 .region-node.axis ellipse {
@@ -440,6 +440,17 @@ button:disabled {
   stroke-width: 5;
 }
 
+.region-node.source ellipse {
+  stroke: #fff2b9;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 7px rgba(255, 226, 140, 0.55));
+}
+
+.region-node.source.valid ellipse,
+.region-node.source.target ellipse {
+  stroke-width: 5;
+}
+
 .region-node circle {
   fill: #201a12;
   stroke: #dcc087;
@@ -451,14 +462,18 @@ button:disabled {
   stroke: rgba(236, 217, 170, 0.5);
   stroke-width: 2;
   paint-order: stroke;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 900;
   text-anchor: middle;
   pointer-events: none;
 }
 
+.region-node .region-label {
+  paint-order: stroke;
+}
+
 .region-node .vp-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
   fill: rgba(42, 32, 18, 0.82);
 }
@@ -467,6 +482,24 @@ button:disabled {
   font-size: 12px !important;
   fill: rgba(42, 32, 18, 0.82) !important;
   stroke-width: 1 !important;
+}
+
+.unit-tethers line {
+  stroke: rgba(37, 29, 18, 0.42);
+  stroke-width: 2;
+  stroke-dasharray: 4 6;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.unit-tethers line.allies {
+  stroke: rgba(31, 68, 94, 0.52);
+}
+
+.unit-tethers line.selected {
+  stroke: rgba(255, 240, 168, 0.82);
+  stroke-width: 3;
+  stroke-dasharray: 7 5;
 }
 
 .unit-counter {
@@ -487,7 +520,7 @@ button:disabled {
 
 .unit-counter.selected rect {
   stroke: #fff0a8;
-  stroke-width: 4;
+  stroke-width: 3;
 }
 
 .unit-counter.planned rect {
@@ -502,7 +535,7 @@ button:disabled {
 
 .unit-type {
   fill: #18140d;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .unit-counter.allies .unit-type,
@@ -512,7 +545,7 @@ button:disabled {
 
 .unit-strength {
   fill: #18140d;
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .order-dock {

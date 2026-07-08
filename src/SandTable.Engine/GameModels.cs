@@ -131,7 +131,15 @@ public sealed record RegionDefinition(
     int VictoryPoints,
     int SupplyValue,
     IReadOnlyList<string> Features,
-    IReadOnlyList<string> AdjacentRegionIds);
+    IReadOnlyList<string> AdjacentRegionIds,
+    RegionVisualDefinition? Visual = null);
+
+public sealed record RegionVisualDefinition(
+    Coordinate? LabelOffset = null,
+    string? LabelAnchor = null,
+    Coordinate? UnitStackOffset = null,
+    int? UnitStackColumns = null,
+    Coordinate? FeatureOffset = null);
 
 public sealed record RouteDefinition(
     string FromRegionId,

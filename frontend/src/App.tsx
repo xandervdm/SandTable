@@ -388,6 +388,7 @@ export function App() {
                 map={scenarioContent.map}
                 state={campaignState}
                 selectedUnitId={selectedUnitId}
+                selectedUnitRegionId={selectedUnit?.regionId ?? null}
                 selectedTargetRegionId={selectedTargetRegionId}
                 validTargetIds={validTargetIds}
                 plannedUnitIds={pendingOrders.map((order) => order.unitId)}
@@ -770,6 +771,7 @@ function TheatreMap({
   map,
   state,
   selectedUnitId,
+  selectedUnitRegionId,
   selectedTargetRegionId,
   validTargetIds,
   plannedUnitIds,
@@ -779,6 +781,7 @@ function TheatreMap({
   map: MapDefinition;
   state: CampaignStateResponse;
   selectedUnitId: string | null;
+  selectedUnitRegionId: string | null;
   selectedTargetRegionId: string | null;
   validTargetIds: string[];
   plannedUnitIds: string[];
@@ -860,21 +863,49 @@ function TheatreMap({
           const owner = stateRegion?.owner ?? region.owner;
           const valid = validTargetIds.includes(region.id);
           const target = selectedTargetRegionId === region.id;
+          const source = selectedUnitRegionId === region.id;
           return (
             <g
               key={region.id}
-              className={`region-node ${owner.toLowerCase()} ${valid ? "valid" : ""} ${target ? "target" : ""}`}
+              className={`region-node ${owner.toLowerCase()} ${source ? "source" : ""} ${valid ? "valid" : ""} ${target ? "target" : ""}`}
               onClick={() => onRegionSelect(region.id)}
             >
               <ellipse cx={region.position.x} cy={region.position.y} rx="48" ry="30" />
               <circle cx={region.position.x} cy={region.position.y} r="7" />
-              <text x={region.position.x} y={region.position.y - 18}>{region.name}</text>
+              <RegionLabel region={region} />
               <text className="vp-label" x={region.position.x} y={region.position.y + 26}>
                 VP {stateRegion?.victoryPoints ?? region.victoryPoints}
               </text>
               <FeatureMarks region={region} />
             </g>
           );
+        })}
+      </g>
+
+      <g className="unit-tethers">
+        {Array.from(unitsByRegion.entries()).flatMap(([regionId, units]) => {
+          const region = regionDefinitions.get(regionId);
+          if (!region) {
+            return [];
+          }
+
+          return units.map((unit, index) => {
+            const { x, y } = resolveUnitCounterPosition(region, index, map.coordinateSystem);
+            if (distance(region.position.x, region.position.y, x, y) < 34) {
+              return null;
+            }
+
+            return (
+              <line
+                key={`${unit.id}-tether`}
+                className={`${unit.side.toLowerCase()} ${unit.id === selectedUnitId ? "selected" : ""}`}
+                x1={region.position.x}
+                y1={region.position.y}
+                x2={x}
+                y2={y}
+              />
+            );
+          });
         })}
       </g>
 
@@ -885,10 +916,7 @@ function TheatreMap({
             return null;
           }
           return units.map((unit, index) => {
-            const offsetX = 22 + index * 36;
-            const offsetY = index % 2 === 0 ? -6 : 36;
-            const x = region.position.x + offsetX;
-            const y = region.position.y + offsetY;
+            const { x, y } = resolveUnitCounterPosition(region, index, map.coordinateSystem);
             return (
               <g
                 key={unit.id}
@@ -899,7 +927,7 @@ function TheatreMap({
                   onUnitSelect(unit.id);
                 }}
               >
-                <rect x="-24" y="-21" width="48" height="42" rx="4" />
+                <rect x="-21" y="-19" width="42" height="38" rx="4" />
                 <text className="unit-type" y="-4">{unitCode(unit)}</text>
                 <text className="unit-strength" y="13">{unit.strength}</text>
               </g>
@@ -911,16 +939,38 @@ function TheatreMap({
   );
 }
 
+function RegionLabel({ region }: { region: RegionDefinition }) {
+  const offset = region.visual?.labelOffset ?? { x: 0, y: -21 };
+  const lines = splitRegionName(region.name);
+  const lineHeight = 15;
+  const y = region.position.y + offset.y - ((lines.length - 1) * lineHeight) / 2;
+  return (
+    <text
+      className="region-label"
+      x={region.position.x + offset.x}
+      y={y}
+      textAnchor={region.visual?.labelAnchor ?? "middle"}
+    >
+      {lines.map((line, index) => (
+        <tspan key={line} x={region.position.x + offset.x} dy={index === 0 ? 0 : lineHeight}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 function FeatureMarks({ region }: { region: RegionDefinition }) {
   const marks = region.features.slice(0, 3);
+  const offset = region.visual?.featureOffset ?? { x: -26, y: 44 };
   return (
     <>
       {marks.map((feature, index) => (
         <text
           key={feature}
           className="feature-mark"
-          x={region.position.x - 26 + index * 16}
-          y={region.position.y + 44}
+          x={region.position.x + offset.x + index * 16}
+          y={region.position.y + offset.y}
         >
           {feature.charAt(0)}
         </text>
@@ -1040,6 +1090,47 @@ function resolveUnroutedAdjacencyTracks(map: MapDefinition) {
 
 function edgeKey(firstRegionId: string, secondRegionId: string) {
   return [firstRegionId, secondRegionId].sort().join("::");
+}
+
+function resolveUnitCounterPosition(
+  region: RegionDefinition,
+  index: number,
+  coordinateSystem: MapDefinition["coordinateSystem"]
+) {
+  const columns = Math.max(1, region.visual?.unitStackColumns ?? 2);
+  const offset = region.visual?.unitStackOffset ?? { x: 0, y: 58 };
+  const column = index % columns;
+  const row = Math.floor(index / columns);
+  const cellWidth = 48;
+  const cellHeight = 43;
+  const x = region.position.x + offset.x + (column - (columns - 1) / 2) * cellWidth;
+  const y = region.position.y + offset.y + row * cellHeight;
+
+  return {
+    x: clamp(x, 26, coordinateSystem.width - 26),
+    y: clamp(y, 24, coordinateSystem.height - 24)
+  };
+}
+
+function splitRegionName(name: string) {
+  const words = name.split(" ");
+  if (words.length < 2 || name.length <= 11) {
+    return [name];
+  }
+
+  const midpoint = Math.ceil(words.length / 2);
+  return [
+    words.slice(0, midpoint).join(" "),
+    words.slice(midpoint).join(" ")
+  ];
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function distance(x1: number, y1: number, x2: number, y2: number) {
+  return Math.hypot(x2 - x1, y2 - y1);
 }
 
 function groupUnitsByRegion(units: UnitState[]) {
