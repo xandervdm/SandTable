@@ -17,6 +17,7 @@ import {
   Users
 } from "lucide-react";
 import { HttpGameClient } from "./runtime/httpGameClient";
+import { PixiTheatreMap } from "./components/PixiTheatreMap";
 import type {
   CampaignEvent,
   CampaignStateResponse,
@@ -384,7 +385,7 @@ export function App() {
         <section className="map-stage">
           <div className="map-frame">
             {scenarioContent && campaignState ? (
-              <TheatreMap
+              <PixiTheatreMap
                 map={scenarioContent.map}
                 state={campaignState}
                 selectedUnitId={selectedUnitId}
