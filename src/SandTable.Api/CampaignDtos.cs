@@ -18,6 +18,12 @@ public sealed record SubmitCommandRequest(
 
 public sealed record ChooseTensionOptionRequest(string OptionId);
 
+public enum CampaignEventOrder
+{
+    Chronological,
+    LatestTurnFirst
+}
+
 public sealed record TheatreSummaryResponse(
     string TheatreId,
     string Name,

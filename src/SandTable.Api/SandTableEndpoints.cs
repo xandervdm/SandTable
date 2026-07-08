@@ -96,6 +96,7 @@ public static class SandTableEndpoints
             Guid campaignUid,
             int? turnNumber,
             int? limit,
+            CampaignEventOrder? order,
             CampaignService service,
             CancellationToken cancellationToken) =>
         {
@@ -103,6 +104,7 @@ public static class SandTableEndpoints
                 campaignUid,
                 turnNumber,
                 limit ?? 100,
+                order ?? CampaignEventOrder.Chronological,
                 cancellationToken);
             return events is null ? Results.NotFound() : Results.Ok(events);
         });

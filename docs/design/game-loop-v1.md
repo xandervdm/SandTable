@@ -63,3 +63,5 @@ Before building the React UI, add read endpoints that expose:
 - persisted turn events: `GET /api/campaigns/{campaignUid}/events`
 
 The UI should not need to reconstruct rules from raw database tables.
+
+Campaign events default to chronological ordering by turn number and event sequence so replay and turn-summary views can render naturally. Use `order=LatestTurnFirst` for campaign log views that need newest turns first.

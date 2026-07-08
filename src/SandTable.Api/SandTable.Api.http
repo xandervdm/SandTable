@@ -48,7 +48,12 @@ Accept: application/json
 
 ###
 
-GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/events
+GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/events?order=Chronological
+Accept: application/json
+
+###
+
+GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/events?order=LatestTurnFirst&limit=50
 Accept: application/json
 
 ###

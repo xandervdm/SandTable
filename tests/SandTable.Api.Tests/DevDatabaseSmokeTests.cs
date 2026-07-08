@@ -44,6 +44,7 @@ public class DevDatabaseSmokeTests
             campaignUid,
             turnNumber: null,
             limit: 100,
+            CampaignEventOrder.Chronological,
             cancellationToken);
 
         Assert.NotNull(submitted);

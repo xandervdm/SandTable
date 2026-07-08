@@ -246,6 +246,7 @@ public sealed class CampaignService(
         Guid campaignUid,
         int? turnNumber,
         int limit,
+        CampaignEventOrder order,
         CancellationToken cancellationToken)
     {
         var safeLimit = Math.Clamp(limit, 1, 500);
@@ -256,9 +257,10 @@ public sealed class CampaignService(
             return null;
         }
 
+        var orderBy = EventOrderSql(order);
         var rows = await connection.QueryAsync<CampaignEventRow>(
             new CommandDefinition(
-                """
+                $"""
                 select
                     ce.uid as EventUid,
                     ct.uid as CampaignTurnUid,
@@ -275,7 +277,7 @@ public sealed class CampaignService(
                 inner join public.campaign_turn ct on ct.id = ce.campaign_turn_id
                 where ce.campaign_id = @CampaignId
                     and (@TurnNumber is null or ct.turn_number = @TurnNumber)
-                order by ct.turn_number desc, ce.event_sequence
+                order by {orderBy}
                 limit @Limit
                 """,
                 new
@@ -1058,6 +1060,15 @@ public sealed class CampaignService(
         var json = JsonSerializer.Serialize(state, ApiJson.SerializerOptions);
         var hashBytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json));
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
+    }
+
+    private static string EventOrderSql(CampaignEventOrder order)
+    {
+        return order switch
+        {
+            CampaignEventOrder.LatestTurnFirst => "ct.turn_number desc, ce.event_sequence",
+            _ => "ct.turn_number, ce.event_sequence"
+        };
     }
 
     internal sealed record CommandPayload(string? TargetRegionId);
