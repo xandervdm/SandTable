@@ -53,7 +53,10 @@ app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "Healthy",
     service = "SandTable.Api"
-}));
+}))
+    .WithName("GetHealth")
+    .WithTags("Health")
+    .Produces(StatusCodes.Status200OK);
 
 app.MapSandTableEndpoints();
 

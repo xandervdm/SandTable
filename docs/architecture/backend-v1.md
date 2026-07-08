@@ -50,6 +50,11 @@ Each state-changing operation should:
 - `POST /api/campaigns/{campaignUid}/resolve-turn` loads the latest state, plans AI commands, resolves the turn, generates active tensions, persists events, and writes a latest snapshot.
 - `POST /api/campaigns/{campaignUid}/tensions/{cardId}/choose` applies an active tension option, records the decision, emits events, and writes an autosave snapshot.
 
+## Endpoint Metadata
+
+Minimal API endpoints use explicit names, tags, response metadata, request-body metadata, and `[FromServices]` service parameters in `src/SandTable.Api/SandTableEndpoints.cs`.
+This prepares the surface for OpenAPI/client generation without adding Swagger UI or an OpenAPI document package yet.
+
 ## Dev Database Smoke Coverage
 
 `tests/SandTable.Api.Tests/DevDatabaseSmokeTests.cs` is gated by `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.

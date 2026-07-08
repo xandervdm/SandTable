@@ -84,6 +84,8 @@ Current API routes:
 - `POST /api/campaigns/{campaignUid}/resolve-turn`
 - `POST /api/campaigns/{campaignUid}/tensions/{cardId}/choose`
 
+Endpoints have explicit names, tags, response metadata, and service-binding metadata in `src/SandTable.Api/SandTableEndpoints.cs` for future OpenAPI/client generation.
+
 Manual samples live in:
 
 - `src/SandTable.Api/SandTable.Api.http`
@@ -141,6 +143,6 @@ If `.dotnet_cli_home_build` is created, remove it after verification.
 
 - Smoke-test the live Dapper API against `VULTR_POSTGRES_URL_SAND_TABLE_DEV`.
 - Fix any SQL/API mismatch found by create campaign -> submit command -> resolve turn -> choose tension option.
-- Add explicit OpenAPI metadata/tags for the existing endpoints before frontend/API client generation.
+- Decide when to add an actual OpenAPI document endpoint/package once frontend client generation starts.
 - Keep tightening command validation as new command payload fields or costs are introduced.
 - Keep OpenIddict as a staging prerequisite, separate from the early implicit dev user.
