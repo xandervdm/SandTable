@@ -55,13 +55,19 @@ public sealed class GameContentRepository(IWebHostEnvironment environment, IConf
         string scenarioId,
         CancellationToken cancellationToken = default)
     {
+        var theatrePath = ResolveTheatrePath(theatreId);
         var content = await LoadAsync(theatreId, scenarioId, cancellationToken);
+        var display = await ReadOptionalJsonAsync<MapDisplayDefinition>(
+            Path.Combine(theatrePath, "display.json"),
+            cancellationToken);
+
         return new ScenarioContentResponse(
             content.Map,
             content.Scenario,
             content.Units,
             content.Doctrines,
-            content.Events);
+            content.Events,
+            display);
     }
 
     public async Task<GameContentBundle> LoadAsync(
@@ -147,5 +153,15 @@ public sealed class GameContentRepository(IWebHostEnvironment environment, IConf
         await using var stream = File.OpenRead(path);
         var value = await JsonSerializer.DeserializeAsync<T>(stream, ApiJson.SerializerOptions, cancellationToken);
         return value ?? throw new InvalidOperationException($"Could not deserialize {path}.");
+    }
+
+    private static async Task<T?> ReadOptionalJsonAsync<T>(string path, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path))
+        {
+            return default;
+        }
+
+        return await ReadJsonAsync<T>(path, cancellationToken);
     }
 }

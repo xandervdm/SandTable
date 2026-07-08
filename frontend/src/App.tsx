@@ -387,6 +387,7 @@ export function App() {
             {scenarioContent && campaignState ? (
               <PixiTheatreMap
                 map={scenarioContent.map}
+                display={scenarioContent.display}
                 state={campaignState}
                 selectedUnitId={selectedUnitId}
                 selectedUnitRegionId={selectedUnit?.regionId ?? null}

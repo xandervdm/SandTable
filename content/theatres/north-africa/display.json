@@ -1,0 +1,85 @@
+{
+  "theatreId": "north-africa",
+  "coordinateSystem": {
+    "width": 1180,
+    "height": 620
+  },
+  "backgroundImage": {
+    "url": "/theatres/north-africa/north-africa-theatre.png",
+    "fit": "stretch"
+  },
+  "regions": {
+    "casablanca": {
+      "labelOffset": { "x": -4, "y": -42 },
+      "hitArea": { "rx": 48, "ry": 31 },
+      "counterAnchor": { "x": 0, "y": 50 },
+      "stackDirection": "row"
+    },
+    "algiers": {
+      "labelOffset": { "x": 0, "y": -43 },
+      "hitArea": { "rx": 50, "ry": 32 },
+      "counterAnchor": { "x": 0, "y": 52 },
+      "stackDirection": "row"
+    },
+    "tunis": {
+      "labelOffset": { "x": 0, "y": -42 },
+      "hitArea": { "rx": 48, "ry": 31 },
+      "counterAnchor": { "x": 0, "y": 52 },
+      "stackDirection": "row"
+    },
+    "kasserine-pass": {
+      "labelOffset": { "x": 0, "y": -40 },
+      "hitArea": { "rx": 48, "ry": 34 },
+      "counterAnchor": { "x": 0, "y": 54 },
+      "stackDirection": "row"
+    },
+    "tripoli": {
+      "labelOffset": { "x": 0, "y": -45 },
+      "hitArea": { "rx": 50, "ry": 34 },
+      "counterAnchor": { "x": 0, "y": 58 },
+      "stackDirection": "row"
+    },
+    "fezzan-desert": {
+      "labelOffset": { "x": 0, "y": -44 },
+      "hitArea": { "rx": 50, "ry": 36 },
+      "counterAnchor": { "x": 0, "y": 58 },
+      "stackDirection": "row"
+    },
+    "benghazi": {
+      "labelOffset": { "x": 0, "y": -41 },
+      "hitArea": { "rx": 48, "ry": 31 },
+      "counterAnchor": { "x": 0, "y": 56 },
+      "stackDirection": "row"
+    },
+    "gazala": {
+      "labelOffset": { "x": 0, "y": -39 },
+      "hitArea": { "rx": 46, "ry": 30 },
+      "counterAnchor": { "x": 0, "y": 54 },
+      "stackDirection": "row"
+    },
+    "tobruk": {
+      "labelOffset": { "x": 0, "y": -42 },
+      "hitArea": { "rx": 48, "ry": 31 },
+      "counterAnchor": { "x": 0, "y": 58 },
+      "stackDirection": "row"
+    },
+    "el-alamein": {
+      "labelOffset": { "x": 0, "y": -41 },
+      "hitArea": { "rx": 52, "ry": 31 },
+      "counterAnchor": { "x": 0, "y": 58 },
+      "stackDirection": "row"
+    },
+    "alexandria": {
+      "labelOffset": { "x": 0, "y": -42 },
+      "hitArea": { "rx": 50, "ry": 32 },
+      "counterAnchor": { "x": 0, "y": 58 },
+      "stackDirection": "row"
+    },
+    "cairo": {
+      "labelOffset": { "x": 0, "y": -2 },
+      "hitArea": { "rx": 48, "ry": 32 },
+      "counterAnchor": { "x": 0, "y": 58 },
+      "stackDirection": "row"
+    }
+  }
+}

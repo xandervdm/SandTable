@@ -42,7 +42,24 @@ public sealed record ScenarioContentResponse(
     ScenarioDefinition Scenario,
     UnitCatalog Units,
     DoctrineCatalog Doctrines,
-    ScenarioEventCatalog Events);
+    ScenarioEventCatalog Events,
+    MapDisplayDefinition? Display);
+
+public sealed record MapDisplayDefinition(
+    string TheatreId,
+    CoordinateSystem CoordinateSystem,
+    MapDisplayBackground BackgroundImage,
+    IReadOnlyDictionary<string, RegionDisplayDefinition> Regions);
+
+public sealed record MapDisplayBackground(string Url, string Fit);
+
+public sealed record RegionDisplayDefinition(
+    Coordinate? LabelOffset,
+    DisplayHitArea? HitArea,
+    Coordinate? CounterAnchor,
+    string? StackDirection);
+
+public sealed record DisplayHitArea(int Rx, int Ry);
 
 public sealed record CampaignSummaryResponse(
     Guid CampaignUid,

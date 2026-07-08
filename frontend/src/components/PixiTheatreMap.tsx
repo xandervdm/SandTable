@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, Assets, Container, Graphics, Sprite, Text } from "pixi.js";
 import type {
   CampaignStateResponse,
   MapDefinition,
+  MapDisplayDefinition,
   RegionDefinition,
   Side,
   UnitState
@@ -10,6 +11,7 @@ import type {
 
 interface PixiTheatreMapProps {
   map: MapDefinition;
+  display?: MapDisplayDefinition | null;
   state: CampaignStateResponse;
   selectedUnitId: string | null;
   selectedUnitRegionId: string | null;
@@ -32,13 +34,27 @@ interface ViewportTransform {
   y: number;
 }
 
-const UNIT_COUNTER_WIDTH = 32;
-const UNIT_COUNTER_HEIGHT = 27;
+interface ResolvedRegionDisplay {
+  labelOffset: { x: number; y: number };
+  hitArea: { rx: number; ry: number };
+  counterAnchor: { x: number; y: number };
+  stackDirection: string;
+}
+
+const UNIT_COUNTER_WIDTH = 38;
+const UNIT_COUNTER_HEIGHT = 32;
 const REGION_HIT_RADIUS_X = 44;
 const REGION_HIT_RADIUS_Y = 30;
+const DEFAULT_REGION_DISPLAY: ResolvedRegionDisplay = {
+  labelOffset: { x: 0, y: -34 },
+  hitArea: { rx: REGION_HIT_RADIUS_X, ry: REGION_HIT_RADIUS_Y },
+  counterAnchor: { x: 0, y: 46 },
+  stackDirection: "row"
+};
 
 export function PixiTheatreMap({
   map,
+  display,
   state,
   selectedUnitId,
   selectedUnitRegionId,
@@ -119,6 +135,31 @@ export function PixiTheatreMap({
   }, [isReady, map]);
 
   useEffect(() => {
+    const backgroundUrl = display?.backgroundImage?.url;
+    if (!backgroundUrl || !isReady) {
+      return;
+    }
+
+    let cancelled = false;
+    void Assets.load(backgroundUrl).then(() => {
+      if (cancelled) {
+        return;
+      }
+
+      const host = hostRef.current;
+      const app = appRef.current;
+      const latestProps = latestPropsRef.current;
+      if (host && app && latestProps) {
+        renderPixiScene(host, app, latestProps);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [display?.backgroundImage?.url, isReady]);
+
+  useEffect(() => {
     const host = hostRef.current;
     const app = appRef.current;
     if (!host || !app || !isReady) {
@@ -127,6 +168,7 @@ export function PixiTheatreMap({
 
     const props = {
       map,
+      display,
       state,
       selectedUnitId,
       selectedUnitRegionId,
@@ -141,6 +183,7 @@ export function PixiTheatreMap({
   }, [
     isReady,
     map,
+    display,
     state,
     selectedUnitId,
     selectedUnitRegionId,
@@ -188,8 +231,7 @@ function fitViewport(host: HTMLDivElement, app: Application, viewport: Container
   app.renderer.resize(width, height);
 
   const containScale = Math.min(width / map.coordinateSystem.width, height / map.coordinateSystem.height);
-  const coverScale = Math.max(width / map.coordinateSystem.width, height / map.coordinateSystem.height);
-  const scale = Math.min(coverScale, containScale * 1.04);
+  const scale = containScale;
   const x = (width - map.coordinateSystem.width * scale) / 2;
   const y = (height - map.coordinateSystem.height * scale) / 2;
   viewport.scale.set(scale);
@@ -202,13 +244,32 @@ function drawWorldScene(viewport: Container, props: PixiTheatreMapProps) {
   const routes = resolvePlayableRoutes(map);
   const regionStates = new Map(state.regions.map((region) => [region.id, region]));
 
-  drawBackground(viewport, map);
+  drawBackground(viewport, map, props.display);
   drawRoutes(viewport, routes, props);
   drawRegionOverlays(viewport, map, regionStates, props);
 }
 
-function drawBackground(viewport: Container, map: MapDefinition) {
+function drawBackground(viewport: Container, map: MapDefinition, display: MapDisplayDefinition | null | undefined) {
   const { width, height } = map.coordinateSystem;
+  const backgroundUrl = display?.backgroundImage?.url;
+
+  if (backgroundUrl) {
+    const background = Sprite.from(backgroundUrl);
+    background.x = 0;
+    background.y = 0;
+    background.width = width;
+    background.height = height;
+    viewport.addChild(background);
+
+    const theatreTone = new Graphics();
+    theatreTone
+      .rect(0, 0, width, height)
+      .fill({ color: 0x2a2015, alpha: 0.08 })
+      .stroke({ width: 8, color: 0x120f0b, alpha: 0.38 });
+    viewport.addChild(theatreTone);
+    return;
+  }
+
   const coastlineY = 118;
   const background = new Graphics();
 
@@ -330,9 +391,10 @@ function drawRegionOverlays(
     const ownerColor = colorForSide(owner);
     const regionGraphic = new Graphics();
     const highlight = source || target || valid;
+    const display = resolveRegionDisplay(props.display, region.id);
 
     regionGraphic
-      .ellipse(region.position.x, region.position.y, REGION_HIT_RADIUS_X, REGION_HIT_RADIUS_Y)
+      .ellipse(region.position.x, region.position.y, display.hitArea.rx, display.hitArea.ry)
       .fill({ color: ownerColor.fill, alpha: source || target ? 0.14 : valid ? 0.11 : 0.045 })
       .stroke({
         width: source || target ? 3 : valid ? 2.4 : 1.2,
@@ -341,7 +403,7 @@ function drawRegionOverlays(
       });
     if (highlight) {
       regionGraphic
-        .ellipse(region.position.x, region.position.y, REGION_HIT_RADIUS_X + 9, REGION_HIT_RADIUS_Y + 7)
+        .ellipse(region.position.x, region.position.y, display.hitArea.rx + 9, display.hitArea.ry + 7)
         .stroke({
           width: source || target ? 2.4 : 1.5,
           color: source || target ? 0xfff2b8 : 0xf8d77d,
@@ -385,7 +447,12 @@ function drawRegionLabels(
     const source = props.selectedUnitRegionId === region.id;
     const target = props.selectedTargetRegionId === region.id;
     const label = createRegionLabel(region, stateRegion?.victoryPoints ?? region.victoryPoints, source || target);
-    const position = worldToScreen(transform, region.position.x, region.position.y - 34);
+    const display = resolveRegionDisplay(props.display, region.id);
+    const position = worldToScreen(
+      transform,
+      region.position.x + display.labelOffset.x,
+      region.position.y + display.labelOffset.y
+    );
     label.position.set(position.x, position.y);
     label.eventMode = "static";
     label.cursor = "pointer";
@@ -411,15 +478,23 @@ function drawUnits(
       continue;
     }
 
-    const slots = resolveUnitSlotPositions(units.length);
+    const display = resolveRegionDisplay(props.display, region.id);
+    const slots = resolveUnitSlotPositions(units.length, display.stackDirection);
+    const anchorX = region.position.x + display.counterAnchor.x;
+    const anchorY = region.position.y + display.counterAnchor.y;
     if (units.length > 1) {
       const stackBase = new Graphics();
-      const stackWidth = Math.min(96, Math.max(50, slots.length * 35 - 4));
-      const stackPosition = worldToScreen(transform, region.position.x, region.position.y + 50);
+      const stackWidth = display.stackDirection === "column"
+        ? UNIT_COUNTER_WIDTH + 18
+        : Math.min(118, Math.max(54, slots.length * 40 - 2));
+      const stackHeight = display.stackDirection === "column"
+        ? Math.min(118, Math.max(42, slots.length * 30 + 4))
+        : 40;
+      const stackPosition = worldToScreen(transform, anchorX, anchorY);
       stackBase
-        .roundRect(stackPosition.x - stackWidth / 2, stackPosition.y - 17, stackWidth, 34, 7)
-        .fill({ color: 0x1f170e, alpha: 0.14 })
-        .stroke({ width: 1, color: 0xf3d797, alpha: 0.13 });
+        .roundRect(stackPosition.x - stackWidth / 2, stackPosition.y - stackHeight / 2, stackWidth, stackHeight, 6)
+        .fill({ color: 0x12100c, alpha: 0.26 })
+        .stroke({ width: 1.2, color: 0xf0d28a, alpha: 0.18 });
       unitLayer.addChild(stackBase);
     }
 
@@ -429,7 +504,7 @@ function drawUnits(
         selected: unit.id === props.selectedUnitId,
         planned: props.plannedUnitIds.includes(unit.id)
       });
-      const position = worldToScreen(transform, region.position.x + slot.x, region.position.y + slot.y);
+      const position = worldToScreen(transform, anchorX + slot.x, anchorY + slot.y);
       counter.position.set(position.x, position.y);
       counter.eventMode = "static";
       counter.cursor = "pointer";
@@ -452,7 +527,7 @@ function drawUnits(
         },
         anchor: 0.5
       });
-      const overflowPosition = worldToScreen(transform, region.position.x + 45, region.position.y + 49);
+      const overflowPosition = worldToScreen(transform, anchorX + 48, anchorY);
       overflow.position.set(overflowPosition.x, overflowPosition.y);
       unitLayer.addChild(overflow);
     }
@@ -474,12 +549,12 @@ function createRegionLabel(region: RegionDefinition, victoryPoints: number, emph
     text: splitRegionName(region.name).join("\n"),
     style: {
       align: "center",
-      fill: 0x1f1a12,
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 11,
+      fill: 0x17120c,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      fontSize: 13,
       fontWeight: "900",
-      lineHeight: 12,
-      stroke: { color: 0xf1dfb8, width: 2 }
+      lineHeight: 14,
+      stroke: { color: 0xf5e2b2, width: 1 }
     },
     anchor: 0.5
   });
@@ -487,8 +562,8 @@ function createRegionLabel(region: RegionDefinition, victoryPoints: number, emph
     text: `${victoryPoints} VP`,
     style: {
       fill: 0xffe7a0,
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 8,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      fontSize: 10,
       fontWeight: "900",
       stroke: { color: 0x24190e, width: 2 }
     },
@@ -496,12 +571,15 @@ function createRegionLabel(region: RegionDefinition, victoryPoints: number, emph
   });
 
   const backing = new Graphics();
+  const backingWidth = Math.max(76, name.width + 20);
+  const backingHeight = name.height + 14;
   backing
-    .roundRect(-34, -15, 68, 27, 5)
-    .fill({ color: emphasized ? 0xffdf8a : 0xe4c57b, alpha: emphasized ? 0.18 : 0.09 })
-    .stroke({ width: 1, color: 0x4c361b, alpha: emphasized ? 0.26 : 0.1 });
+    .roundRect(-backingWidth / 2, -backingHeight / 2, backingWidth, backingHeight, 5)
+    .fill({ color: emphasized ? 0xffe2a0 : 0xf1d08a, alpha: emphasized ? 0.58 : 0.42 })
+    .stroke({ width: 1.2, color: 0x352614, alpha: emphasized ? 0.52 : 0.26 });
 
-  vp.position.set(0, 17);
+  name.position.set(0, -2);
+  vp.position.set(0, backingHeight / 2 + 7);
   label.addChild(backing, name, vp);
   return label;
 }
@@ -532,20 +610,20 @@ function createUnitCounter(unit: UnitState, state: { selected: boolean; planned:
     text: unitCode(unit),
     style: {
       fill: unit.side === "Allies" ? 0xf4fbff : 0x19130b,
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 7,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      fontSize: 8,
       fontWeight: "900"
     },
     anchor: 0.5
   });
-  code.position.set(0, -5);
+  code.position.set(0, -6);
 
   const strength = new Text({
     text: String(unit.strength),
     style: {
       fill: unit.side === "Allies" ? 0xf4fbff : 0x19130b,
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 12,
+      fontFamily: "Arial, Helvetica, sans-serif",
+      fontSize: 15,
       fontWeight: "900"
     },
     anchor: 0.5
@@ -654,32 +732,48 @@ function edgeKey(firstRegionId: string, secondRegionId: string) {
   return [firstRegionId, secondRegionId].sort().join("::");
 }
 
-function resolveUnitSlotPositions(count: number) {
+function resolveUnitSlotPositions(count: number, stackDirection: string) {
   if (count <= 1) {
-    return [{ x: 0, y: 46 }];
+    return [{ x: 0, y: 0 }];
+  }
+
+  if (stackDirection === "column") {
+    const visibleCount = Math.min(count, 4);
+    const startY = -((visibleCount - 1) * 25) / 2;
+    return Array.from({ length: visibleCount }, (_, index) => ({ x: 0, y: startY + index * 25 }));
   }
 
   if (count === 2) {
     return [
-      { x: -17, y: 46 },
-      { x: 17, y: 46 }
+      { x: -20, y: 0 },
+      { x: 20, y: 0 }
     ];
   }
 
   if (count === 3) {
     return [
-      { x: -31, y: 46 },
-      { x: 0, y: 46 },
-      { x: 31, y: 46 }
+      { x: -39, y: 0 },
+      { x: 0, y: 0 },
+      { x: 39, y: 0 }
     ];
   }
 
   return [
-    { x: -18, y: 38 },
-    { x: 18, y: 38 },
-    { x: -18, y: 59 },
-    { x: 18, y: 59 }
+    { x: -22, y: -18 },
+    { x: 22, y: -18 },
+    { x: -22, y: 18 },
+    { x: 22, y: 18 }
   ];
+}
+
+function resolveRegionDisplay(display: MapDisplayDefinition | null | undefined, regionId: string): ResolvedRegionDisplay {
+  const authored = display?.regions?.[regionId];
+  return {
+    labelOffset: authored?.labelOffset ?? DEFAULT_REGION_DISPLAY.labelOffset,
+    hitArea: authored?.hitArea ?? DEFAULT_REGION_DISPLAY.hitArea,
+    counterAnchor: authored?.counterAnchor ?? DEFAULT_REGION_DISPLAY.counterAnchor,
+    stackDirection: authored?.stackDirection ?? DEFAULT_REGION_DISPLAY.stackDirection
+  };
 }
 
 function splitRegionName(name: string) {

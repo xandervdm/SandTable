@@ -30,6 +30,9 @@ public class GameContentRepositoryTests
         Assert.Equal("north-africa", content.Map.TheatreId);
         Assert.Equal("north-africa-1942", content.Scenario.ScenarioId);
         Assert.Contains(content.Units.Units, unit => unit.Id == "15th-panzer");
+        Assert.NotNull(content.Display);
+        Assert.Equal("/theatres/north-africa/north-africa-theatre.png", content.Display.BackgroundImage.Url);
+        Assert.True(content.Display.Regions.ContainsKey("gazala"));
     }
 
     private static GameContentRepository CreateRepository()

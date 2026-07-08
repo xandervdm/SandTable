@@ -39,6 +39,25 @@ export interface MapDefinition {
   routes: RouteDefinition[];
 }
 
+export interface MapDisplayBackground {
+  url: string;
+  fit: "stretch" | "cover" | string;
+}
+
+export interface RegionDisplayDefinition {
+  labelOffset?: Coordinate | null;
+  hitArea?: { rx: number; ry: number } | null;
+  counterAnchor?: Coordinate | null;
+  stackDirection?: "row" | "column" | "grid" | string | null;
+}
+
+export interface MapDisplayDefinition {
+  theatreId: string;
+  coordinateSystem: CoordinateSystem;
+  backgroundImage: MapDisplayBackground;
+  regions: Record<string, RegionDisplayDefinition>;
+}
+
 export interface ScenarioSummary {
   scenarioId: string;
   theatreId: string;
@@ -102,6 +121,7 @@ export interface ScenarioContent {
   units: { units: UnitDefinition[] };
   doctrines: unknown;
   events: unknown;
+  display?: MapDisplayDefinition | null;
 }
 
 export interface CampaignSummary {
