@@ -23,21 +23,12 @@ export interface RegionDefinition {
   supplyValue: number;
   features: string[];
   adjacentRegionIds: string[];
-  visual?: RegionVisualDefinition | null;
 }
 
 export interface RouteDefinition {
   fromRegionId: string;
   toRegionId: string;
   routeType: string;
-}
-
-export interface RegionVisualDefinition {
-  labelOffset?: Coordinate | null;
-  labelAnchor?: "start" | "middle" | "end" | null;
-  unitStackOffset?: Coordinate | null;
-  unitStackColumns?: number | null;
-  featureOffset?: Coordinate | null;
 }
 
 export interface MapDefinition {

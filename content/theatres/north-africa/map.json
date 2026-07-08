@@ -2,210 +2,141 @@
   "theatreId": "north-africa",
   "name": "North Africa",
   "coordinateSystem": {
-    "width": 1000,
-    "height": 600
+    "width": 1180,
+    "height": 620
   },
   "regions": [
     {
       "id": "casablanca",
       "name": "Casablanca",
-      "position": { "x": 90, "y": 250 },
+      "position": { "x": 90, "y": 260 },
       "terrain": "Coast",
       "owner": "Allies",
       "victoryPoints": 3,
       "supplyValue": 2,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["algiers"],
-      "visual": {
-        "labelOffset": { "x": 0, "y": -24 },
-        "unitStackOffset": { "x": 0, "y": 58 },
-        "unitStackColumns": 2
-      }
+      "adjacentRegionIds": ["algiers"]
     },
     {
       "id": "algiers",
       "name": "Algiers",
-      "position": { "x": 225, "y": 205 },
+      "position": { "x": 250, "y": 220 },
       "terrain": "Coast",
       "owner": "Allies",
       "victoryPoints": 4,
       "supplyValue": 2,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["casablanca", "tunis", "kasserine-pass"],
-      "visual": {
-        "labelOffset": { "x": 0, "y": -25 },
-        "unitStackOffset": { "x": 0, "y": 62 },
-        "unitStackColumns": 2
-      }
+      "adjacentRegionIds": ["casablanca", "tunis", "kasserine-pass"]
     },
     {
       "id": "tunis",
       "name": "Tunis",
-      "position": { "x": 385, "y": 210 },
+      "position": { "x": 430, "y": 230 },
       "terrain": "Coast",
       "owner": "Axis",
       "victoryPoints": 6,
       "supplyValue": 2,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["algiers", "kasserine-pass", "tripoli"],
-      "visual": {
-        "labelOffset": { "x": 0, "y": -25 },
-        "unitStackOffset": { "x": 0, "y": 58 },
-        "unitStackColumns": 2
-      }
+      "adjacentRegionIds": ["algiers", "kasserine-pass", "tripoli"]
     },
     {
       "id": "kasserine-pass",
       "name": "Kasserine Pass",
-      "position": { "x": 335, "y": 320 },
+      "position": { "x": 350, "y": 390 },
       "terrain": "Mountain",
       "owner": "Allies",
       "victoryPoints": 4,
       "supplyValue": 0,
       "features": [],
-      "adjacentRegionIds": ["algiers", "tunis", "fezzan-desert"],
-      "visual": {
-        "labelOffset": { "x": 0, "y": -25 },
-        "unitStackOffset": { "x": 0, "y": 58 },
-        "unitStackColumns": 2
-      }
+      "adjacentRegionIds": ["algiers", "tunis", "fezzan-desert"]
     },
     {
       "id": "tripoli",
       "name": "Tripoli",
-      "position": { "x": 490, "y": 345 },
+      "position": { "x": 555, "y": 335 },
       "terrain": "Coast",
       "owner": "Axis",
       "victoryPoints": 8,
       "supplyValue": 3,
       "features": ["Port", "Airfield", "City"],
-      "adjacentRegionIds": ["tunis", "fezzan-desert", "benghazi"],
-      "visual": {
-        "labelOffset": { "x": 0, "y": -27 },
-        "unitStackOffset": { "x": 0, "y": 58 },
-        "unitStackColumns": 2
-      }
+      "adjacentRegionIds": ["tunis", "fezzan-desert", "benghazi"]
     },
     {
       "id": "fezzan-desert",
       "name": "Fezzan Desert",
-      "position": { "x": 455, "y": 460 },
+      "position": { "x": 530, "y": 480 },
       "terrain": "Desert",
       "owner": "Neutral",
       "victoryPoints": 1,
       "supplyValue": 0,
       "features": [],
-      "adjacentRegionIds": ["kasserine-pass", "tripoli", "benghazi"],
-      "visual": {
-        "labelOffset": { "x": 0, "y": -27 },
-        "unitStackOffset": { "x": 0, "y": 58 },
-        "unitStackColumns": 2
-      }
+      "adjacentRegionIds": ["kasserine-pass", "tripoli", "benghazi"]
     },
     {
       "id": "benghazi",
       "name": "Benghazi",
-      "position": { "x": 625, "y": 300 },
+      "position": { "x": 680, "y": 285 },
       "terrain": "Coast",
       "owner": "Axis",
       "victoryPoints": 6,
       "supplyValue": 2,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["tripoli", "fezzan-desert", "gazala"],
-      "visual": {
-        "labelOffset": { "x": -26, "y": -50 },
-        "labelAnchor": "end",
-        "unitStackOffset": { "x": 0, "y": -58 },
-        "unitStackColumns": 1
-      }
+      "adjacentRegionIds": ["tripoli", "fezzan-desert", "gazala"]
     },
     {
       "id": "gazala",
       "name": "Gazala",
-      "position": { "x": 720, "y": 330 },
+      "position": { "x": 785, "y": 320 },
       "terrain": "Rough",
       "owner": "Axis",
       "victoryPoints": 4,
       "supplyValue": 0,
       "features": ["Fortified"],
-      "adjacentRegionIds": ["benghazi", "tobruk"],
-      "visual": {
-        "labelOffset": { "x": -12, "y": 52 },
-        "labelAnchor": "end",
-        "unitStackOffset": { "x": 0, "y": -58 },
-        "unitStackColumns": 2,
-        "featureOffset": { "x": 38, "y": 43 }
-      }
+      "adjacentRegionIds": ["benghazi", "tobruk"]
     },
     {
       "id": "tobruk",
       "name": "Tobruk",
-      "position": { "x": 790, "y": 310 },
+      "position": { "x": 890, "y": 290 },
       "terrain": "Coast",
       "owner": "Allies",
       "victoryPoints": 8,
       "supplyValue": 2,
       "features": ["Port", "Fortified"],
-      "adjacentRegionIds": ["gazala", "el-alamein"],
-      "visual": {
-        "labelOffset": { "x": 0, "y": -36 },
-        "unitStackOffset": { "x": 0, "y": -58 },
-        "unitStackColumns": 1,
-        "featureOffset": { "x": -10, "y": 48 }
-      }
+      "adjacentRegionIds": ["gazala", "el-alamein"]
     },
     {
       "id": "el-alamein",
       "name": "El Alamein",
-      "position": { "x": 880, "y": 350 },
+      "position": { "x": 990, "y": 345 },
       "terrain": "Desert",
       "owner": "Allies",
       "victoryPoints": 7,
       "supplyValue": 1,
       "features": ["Airfield"],
-      "adjacentRegionIds": ["tobruk", "alexandria"],
-      "visual": {
-        "labelOffset": { "x": -42, "y": 58 },
-        "labelAnchor": "end",
-        "unitStackOffset": { "x": 0, "y": 58 },
-        "unitStackColumns": 2,
-        "featureOffset": { "x": -28, "y": 46 }
-      }
+      "adjacentRegionIds": ["tobruk", "alexandria"]
     },
     {
       "id": "alexandria",
       "name": "Alexandria",
-      "position": { "x": 945, "y": 330 },
+      "position": { "x": 1090, "y": 300 },
       "terrain": "Coast",
       "owner": "Allies",
       "victoryPoints": 12,
       "supplyValue": 3,
       "features": ["Port", "City"],
-      "adjacentRegionIds": ["el-alamein", "cairo"],
-      "visual": {
-        "labelOffset": { "x": -18, "y": -27 },
-        "labelAnchor": "end",
-        "unitStackOffset": { "x": -58, "y": 0 },
-        "unitStackColumns": 1,
-        "featureOffset": { "x": -20, "y": 45 }
-      }
+      "adjacentRegionIds": ["el-alamein", "cairo"]
     },
     {
       "id": "cairo",
       "name": "Cairo",
-      "position": { "x": 955, "y": 430 },
+      "position": { "x": 1090, "y": 430 },
       "terrain": "City",
       "owner": "Allies",
       "victoryPoints": 10,
       "supplyValue": 2,
       "features": ["City", "SupplyDepot"],
-      "adjacentRegionIds": ["alexandria"],
-      "visual": {
-        "labelOffset": { "x": 22, "y": -45 },
-        "unitStackOffset": { "x": -58, "y": 0 },
-        "unitStackColumns": 1,
-        "featureOffset": { "x": -28, "y": 47 }
-      }
+      "adjacentRegionIds": ["alexandria"]
     }
   ],
   "routes": [

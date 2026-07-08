@@ -390,79 +390,111 @@ button:disabled {
   stroke-linecap: round;
 }
 
-.adjacency-routes line {
-  stroke: rgba(70, 48, 27, 0.34);
-  stroke-width: 2;
-  stroke-dasharray: 2 10;
+.routes line {
+  stroke: rgba(47, 35, 24, 0.48);
+  stroke-width: 5;
   stroke-linecap: round;
 }
 
-.routes line {
-  stroke: rgba(58, 43, 29, 0.58);
-  stroke-width: 3.5;
-  stroke-dasharray: 8 8;
-  stroke-linecap: round;
+.routes line.coastalroad {
+  stroke: rgba(63, 48, 31, 0.58);
+  stroke-dasharray: 9 8;
+}
+
+.routes line.deserttrack,
+.routes line.operationalroute {
+  stroke: rgba(79, 60, 37, 0.34);
+  stroke-width: 3;
+  stroke-dasharray: 4 9;
 }
 
 .routes line.railroad {
-  stroke: rgba(35, 32, 28, 0.78);
-  stroke-width: 5;
+  stroke: rgba(35, 32, 28, 0.62);
+  stroke-width: 6;
   stroke-dasharray: 3 7;
+}
+
+.routes line.available {
+  stroke: rgba(250, 222, 144, 0.92);
+  filter: drop-shadow(0 0 5px rgba(255, 225, 135, 0.5));
+}
+
+.routes line.target {
+  stroke: #fff3bd;
+  stroke-width: 7;
 }
 
 .region-node {
   cursor: pointer;
 }
 
-.region-node ellipse {
-  fill: rgba(239, 215, 158, 0.2);
-  stroke: rgba(82, 67, 43, 0.23);
-  stroke-width: 1.5;
-}
-
-.region-node.axis ellipse {
-  fill: rgba(157, 116, 42, 0.24);
-}
-
-.region-node.allies ellipse {
-  fill: rgba(53, 89, 112, 0.28);
-}
-
-.region-node.valid ellipse {
-  stroke: #f7de91;
-  stroke-width: 4;
-  filter: drop-shadow(0 0 8px rgba(255, 214, 112, 0.55));
-}
-
-.region-node.target ellipse {
-  fill: rgba(253, 227, 143, 0.4);
-  stroke: #fff2b9;
-  stroke-width: 5;
-}
-
-.region-node.source ellipse {
-  stroke: #fff2b9;
-  stroke-width: 4;
-  filter: drop-shadow(0 0 7px rgba(255, 226, 140, 0.55));
-}
-
-.region-node.source.valid ellipse,
-.region-node.source.target ellipse {
-  stroke-width: 5;
-}
-
-.region-node circle {
-  fill: #201a12;
-  stroke: #dcc087;
+.region-card {
+  fill: rgba(231, 211, 162, 0.42);
+  stroke: rgba(47, 39, 27, 0.72);
   stroke-width: 2;
+  filter: drop-shadow(0 5px 6px rgba(35, 25, 13, 0.24));
+}
+
+.region-node.axis .region-card {
+  fill: rgba(211, 176, 93, 0.58);
+  stroke: rgba(88, 62, 23, 0.84);
+}
+
+.region-node.allies .region-card {
+  fill: rgba(128, 148, 137, 0.54);
+  stroke: rgba(41, 59, 67, 0.82);
+}
+
+.region-node.neutral .region-card {
+  fill: rgba(214, 198, 156, 0.4);
+  stroke: rgba(83, 72, 45, 0.75);
+}
+
+.owner-strip {
+  fill: rgba(60, 46, 25, 0.42);
+}
+
+.region-node.axis .owner-strip {
+  fill: #7c571f;
+}
+
+.region-node.allies .owner-strip {
+  fill: #2d6685;
+}
+
+.region-node.neutral .owner-strip {
+  fill: #766f5b;
+}
+
+.region-node.valid .region-card {
+  stroke: #f7de91;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 7px rgba(255, 214, 112, 0.42));
+}
+
+.region-node.target .region-card {
+  fill: rgba(253, 227, 143, 0.36);
+  stroke: #fff2b9;
+  stroke-width: 4;
+}
+
+.region-node.source .region-card {
+  stroke: #fff2b9;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgba(255, 226, 140, 0.45));
+}
+
+.region-node.source.valid .region-card,
+.region-node.source.target .region-card {
+  stroke-width: 5;
 }
 
 .region-node text {
   fill: #211b12;
-  stroke: rgba(236, 217, 170, 0.5);
-  stroke-width: 2;
+  stroke: rgba(237, 220, 178, 0.7);
+  stroke-width: 1.4;
   paint-order: stroke;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 900;
   text-anchor: middle;
   pointer-events: none;
@@ -473,44 +505,34 @@ button:disabled {
 }
 
 .region-node .vp-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   fill: rgba(42, 32, 18, 0.82);
+  text-anchor: start;
 }
 
-.feature-mark {
-  font-size: 12px !important;
-  fill: rgba(42, 32, 18, 0.82) !important;
-  stroke-width: 1 !important;
+.feature-marks rect {
+  fill: rgba(35, 27, 16, 0.14);
+  stroke: rgba(54, 42, 24, 0.22);
+  stroke-width: 1;
 }
 
-.unit-tethers line {
-  stroke: rgba(37, 29, 18, 0.42);
-  stroke-width: 2;
-  stroke-dasharray: 4 6;
-  stroke-linecap: round;
-  pointer-events: none;
-}
-
-.unit-tethers line.allies {
-  stroke: rgba(31, 68, 94, 0.52);
-}
-
-.unit-tethers line.selected {
-  stroke: rgba(255, 240, 168, 0.82);
-  stroke-width: 3;
-  stroke-dasharray: 7 5;
+.feature-marks text {
+  fill: rgba(35, 27, 16, 0.85);
+  stroke-width: 0.8;
+  font-size: 9px;
+  text-anchor: middle;
 }
 
 .unit-counter {
   cursor: pointer;
-  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.42));
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.38));
 }
 
 .unit-counter rect {
   fill: #b99c56;
   stroke: #302614;
-  stroke-width: 2;
+  stroke-width: 1.5;
 }
 
 .unit-counter.allies rect {
@@ -520,7 +542,7 @@ button:disabled {
 
 .unit-counter.selected rect {
   stroke: #fff0a8;
-  stroke-width: 3;
+  stroke-width: 2.6;
 }
 
 .unit-counter.planned rect {
@@ -535,7 +557,7 @@ button:disabled {
 
 .unit-type {
   fill: #18140d;
-  font-size: 9px;
+  font-size: 6.5px;
 }
 
 .unit-counter.allies .unit-type,
@@ -545,7 +567,18 @@ button:disabled {
 
 .unit-strength {
   fill: #18140d;
-  font-size: 15px;
+  font-size: 11px;
+}
+
+.stack-overflow {
+  fill: #fff2cc;
+  stroke: rgba(26, 20, 12, 0.75);
+  stroke-width: 2;
+  paint-order: stroke;
+  font-size: 11px;
+  font-weight: 900;
+  text-anchor: middle;
+  pointer-events: none;
 }
 
 .order-dock {

@@ -767,6 +767,11 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+const REGION_CARD_WIDTH = 98;
+const REGION_CARD_HEIGHT = 82;
+const UNIT_COUNTER_WIDTH = 26;
+const UNIT_COUNTER_HEIGHT = 24;
+
 function TheatreMap({
   map,
   state,
@@ -791,10 +796,13 @@ function TheatreMap({
   const regionDefinitions = new Map(map.regions.map((region) => [region.id, region]));
   const regionStates = new Map(state.regions.map((region) => [region.id, region]));
   const unitsByRegion = groupUnitsByRegion(state.units);
-  const adjacencyTracks = resolveUnroutedAdjacencyTracks(map);
+  const playableRoutes = resolvePlayableRoutes(map);
+  const width = map.coordinateSystem.width;
+  const height = map.coordinateSystem.height;
+  const coastlineY = 148;
 
   return (
-    <svg className="theatre-map" viewBox={`0 0 ${map.coordinateSystem.width} ${map.coordinateSystem.height}`} role="img">
+    <svg className="theatre-map" viewBox={`0 0 ${width} ${height}`} role="img">
       <defs>
         <filter id="paperNoise">
           <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="4" seed="18" />
@@ -814,44 +822,37 @@ function TheatreMap({
         </radialGradient>
       </defs>
 
-      <rect width="1000" height="600" fill="#1b211e" />
-      <path d="M0 0 H1000 V188 C910 175 850 168 790 184 C710 205 660 182 596 173 C520 163 470 182 398 166 C312 146 250 166 185 151 C110 133 70 149 0 139 Z" fill="url(#seaGradient)" />
-      <path d="M0 138 C70 149 110 133 185 151 C250 166 312 146 398 166 C470 182 520 163 596 173 C660 182 710 205 790 184 C850 168 910 175 1000 188 V600 H0 Z" fill="url(#desertGlow)" />
-      <rect width="1000" height="600" filter="url(#paperNoise)" opacity="0.75" />
-      <path className="coastline" d="M0 138 C70 149 110 133 185 151 C250 166 312 146 398 166 C470 182 520 163 596 173 C660 182 710 205 790 184 C850 168 910 175 1000 188" />
+      <rect width={width} height={height} fill="#1b211e" />
+      <path d={`M0 0 H${width} V${coastlineY + 34} C${width * 0.86} ${coastlineY + 8} ${width * 0.72} ${coastlineY + 50} ${width * 0.58} ${coastlineY + 18} C${width * 0.43} ${coastlineY - 16} ${width * 0.3} ${coastlineY + 34} ${width * 0.16} ${coastlineY + 12} C${width * 0.08} ${coastlineY} ${width * 0.04} ${coastlineY + 18} 0 ${coastlineY + 6} Z`} fill="url(#seaGradient)" />
+      <path d={`M0 ${coastlineY + 6} C${width * 0.04} ${coastlineY + 18} ${width * 0.08} ${coastlineY} ${width * 0.16} ${coastlineY + 12} C${width * 0.3} ${coastlineY + 34} ${width * 0.43} ${coastlineY - 16} ${width * 0.58} ${coastlineY + 18} C${width * 0.72} ${coastlineY + 50} ${width * 0.86} ${coastlineY + 8} ${width} ${coastlineY + 34} V${height} H0 Z`} fill="url(#desertGlow)" />
+      <rect width={width} height={height} filter="url(#paperNoise)" opacity="0.75" />
+      <path className="coastline" d={`M0 ${coastlineY + 6} C${width * 0.04} ${coastlineY + 18} ${width * 0.08} ${coastlineY} ${width * 0.16} ${coastlineY + 12} C${width * 0.3} ${coastlineY + 34} ${width * 0.43} ${coastlineY - 16} ${width * 0.58} ${coastlineY + 18} C${width * 0.72} ${coastlineY + 50} ${width * 0.86} ${coastlineY + 8} ${width} ${coastlineY + 34}`} />
 
       <g className="terrain-marks">
-        <path d="M315 275 l18 -35 l18 35 M352 275 l15 -28 l15 28 M390 470 l18 -32 l18 32 M450 480 l14 -24 l14 24" />
-        <path d="M620 365 c38 -20 76 -18 112 4 M205 400 c42 -18 84 -12 126 7 M750 430 c45 -12 88 -6 130 16" />
-      </g>
-
-      <g className="adjacency-routes">
-        {adjacencyTracks.map((track) => (
-          <line
-            key={`${track.from.id}-${track.to.id}`}
-            x1={track.from.position.x}
-            y1={track.from.position.y}
-            x2={track.to.position.x}
-            y2={track.to.position.y}
-          />
-        ))}
+        <path d="M255 470 l18 -35 l18 35 M292 470 l15 -28 l15 28 M430 545 l18 -32 l18 32 M470 555 l14 -24 l14 24" />
+        <path d="M575 390 c42 -18 84 -12 126 7 M205 515 c42 -18 84 -12 126 7 M810 405 c45 -12 88 -6 130 16" />
       </g>
 
       <g className="routes">
-        {map.routes.map((route) => {
-          const from = regionDefinitions.get(route.fromRegionId);
-          const to = regionDefinitions.get(route.toRegionId);
-          if (!from || !to) {
-            return null;
-          }
+        {playableRoutes.map((route) => {
+          const routeSelected = Boolean(
+            selectedUnitRegionId &&
+              (route.from.id === selectedUnitRegionId || route.to.id === selectedUnitRegionId) &&
+              (validTargetIds.includes(route.from.id) || validTargetIds.includes(route.to.id))
+          );
+          const routeTarget = Boolean(
+            selectedTargetRegionId &&
+              (route.from.id === selectedTargetRegionId || route.to.id === selectedTargetRegionId) &&
+              (route.from.id === selectedUnitRegionId || route.to.id === selectedUnitRegionId)
+          );
           return (
             <line
-              key={`${route.fromRegionId}-${route.toRegionId}`}
-              x1={from.position.x}
-              y1={from.position.y}
-              x2={to.position.x}
-              y2={to.position.y}
-              className={route.routeType.toLowerCase()}
+              key={`${route.from.id}-${route.to.id}`}
+              x1={route.from.position.x}
+              y1={route.from.position.y}
+              x2={route.to.position.x}
+              y2={route.to.position.y}
+              className={`${route.routeType.toLowerCase()} ${routeSelected ? "available" : ""} ${routeTarget ? "target" : ""}`}
             />
           );
         })}
@@ -870,42 +871,29 @@ function TheatreMap({
               className={`region-node ${owner.toLowerCase()} ${source ? "source" : ""} ${valid ? "valid" : ""} ${target ? "target" : ""}`}
               onClick={() => onRegionSelect(region.id)}
             >
-              <ellipse cx={region.position.x} cy={region.position.y} rx="48" ry="30" />
-              <circle cx={region.position.x} cy={region.position.y} r="7" />
+              <rect
+                className="region-card"
+                x={region.position.x - REGION_CARD_WIDTH / 2}
+                y={region.position.y - REGION_CARD_HEIGHT / 2}
+                width={REGION_CARD_WIDTH}
+                height={REGION_CARD_HEIGHT}
+                rx="8"
+              />
+              <rect
+                className="owner-strip"
+                x={region.position.x - REGION_CARD_WIDTH / 2 + 6}
+                y={region.position.y - REGION_CARD_HEIGHT / 2 + 6}
+                width={REGION_CARD_WIDTH - 12}
+                height="4"
+                rx="2"
+              />
               <RegionLabel region={region} />
-              <text className="vp-label" x={region.position.x} y={region.position.y + 26}>
+              <text className="vp-label" x={region.position.x - 42} y={region.position.y + 9}>
                 VP {stateRegion?.victoryPoints ?? region.victoryPoints}
               </text>
               <FeatureMarks region={region} />
             </g>
           );
-        })}
-      </g>
-
-      <g className="unit-tethers">
-        {Array.from(unitsByRegion.entries()).flatMap(([regionId, units]) => {
-          const region = regionDefinitions.get(regionId);
-          if (!region) {
-            return [];
-          }
-
-          return units.map((unit, index) => {
-            const { x, y } = resolveUnitCounterPosition(region, index, map.coordinateSystem);
-            if (distance(region.position.x, region.position.y, x, y) < 34) {
-              return null;
-            }
-
-            return (
-              <line
-                key={`${unit.id}-tether`}
-                className={`${unit.side.toLowerCase()} ${unit.id === selectedUnitId ? "selected" : ""}`}
-                x1={region.position.x}
-                y1={region.position.y}
-                x2={x}
-                y2={y}
-              />
-            );
-          });
         })}
       </g>
 
@@ -915,24 +903,34 @@ function TheatreMap({
           if (!region) {
             return null;
           }
-          return units.map((unit, index) => {
-            const { x, y } = resolveUnitCounterPosition(region, index, map.coordinateSystem);
-            return (
-              <g
-                key={unit.id}
-                className={`unit-counter ${unit.side.toLowerCase()} ${unit.id === selectedUnitId ? "selected" : ""} ${plannedUnitIds.includes(unit.id) ? "planned" : ""}`}
-                transform={`translate(${x} ${y})`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onUnitSelect(unit.id);
-                }}
-              >
-                <rect x="-21" y="-19" width="42" height="38" rx="4" />
-                <text className="unit-type" y="-4">{unitCode(unit)}</text>
-                <text className="unit-strength" y="13">{unit.strength}</text>
-              </g>
-            );
-          });
+          const slots = resolveUnitSlotPositions(units.length);
+          return (
+            <g key={regionId} className="unit-stack">
+              {units.slice(0, slots.length).map((unit, index) => {
+                const slot = slots[index];
+                return (
+                  <g
+                    key={unit.id}
+                    className={`unit-counter ${unit.side.toLowerCase()} ${unit.id === selectedUnitId ? "selected" : ""} ${plannedUnitIds.includes(unit.id) ? "planned" : ""}`}
+                    transform={`translate(${region.position.x + slot.x} ${region.position.y + slot.y})`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onUnitSelect(unit.id);
+                    }}
+                  >
+                    <rect x={-UNIT_COUNTER_WIDTH / 2} y={-UNIT_COUNTER_HEIGHT / 2} width={UNIT_COUNTER_WIDTH} height={UNIT_COUNTER_HEIGHT} rx="4" />
+                    <text className="unit-type" y="-3">{unitCode(unit)}</text>
+                    <text className="unit-strength" y="10">{unit.strength}</text>
+                  </g>
+                );
+              })}
+              {units.length > slots.length ? (
+                <text className="stack-overflow" x={region.position.x + 39} y={region.position.y + 52}>
+                  +{units.length - slots.length}
+                </text>
+              ) : null}
+            </g>
+          );
         })}
       </g>
     </svg>
@@ -940,19 +938,17 @@ function TheatreMap({
 }
 
 function RegionLabel({ region }: { region: RegionDefinition }) {
-  const offset = region.visual?.labelOffset ?? { x: 0, y: -21 };
   const lines = splitRegionName(region.name);
-  const lineHeight = 15;
-  const y = region.position.y + offset.y - ((lines.length - 1) * lineHeight) / 2;
+  const lineHeight = 12;
+  const y = region.position.y - 23 - ((lines.length - 1) * lineHeight) / 2;
   return (
     <text
       className="region-label"
-      x={region.position.x + offset.x}
+      x={region.position.x}
       y={y}
-      textAnchor={region.visual?.labelAnchor ?? "middle"}
     >
       {lines.map((line, index) => (
-        <tspan key={line} x={region.position.x + offset.x} dy={index === 0 ? 0 : lineHeight}>
+        <tspan key={line} x={region.position.x} dy={index === 0 ? 0 : lineHeight}>
           {line}
         </tspan>
       ))}
@@ -962,20 +958,19 @@ function RegionLabel({ region }: { region: RegionDefinition }) {
 
 function FeatureMarks({ region }: { region: RegionDefinition }) {
   const marks = region.features.slice(0, 3);
-  const offset = region.visual?.featureOffset ?? { x: -26, y: 44 };
+  const chipSize = 16;
+  const startX = region.position.x + 2;
+  const startY = region.position.y + 1;
   return (
-    <>
+    <g className="feature-marks">
       {marks.map((feature, index) => (
-        <text
-          key={feature}
-          className="feature-mark"
-          x={region.position.x + offset.x + index * 16}
-          y={region.position.y + offset.y}
-        >
-          {feature.charAt(0)}
-        </text>
+        <g key={feature} transform={`translate(${startX + index * (chipSize + 3)} ${startY})`}>
+          <title>{feature}</title>
+          <rect width={chipSize} height={chipSize} rx="3" />
+          <text x={chipSize / 2} y="11">{formatFeatureLabel(feature)}</text>
+        </g>
       ))}
-    </>
+    </g>
   );
 }
 
@@ -1072,18 +1067,30 @@ function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | nul
   return currentRegion.adjacentRegionIds;
 }
 
-function resolveUnroutedAdjacencyTracks(map: MapDefinition) {
+function resolvePlayableRoutes(map: MapDefinition) {
   const regionsById = new Map(map.regions.map((region) => [region.id, region]));
-  const routedEdges = new Set(map.routes.map((route) => edgeKey(route.fromRegionId, route.toRegionId)));
+  const routeTypesByEdge = new Map(map.routes.map((route) => [
+    edgeKey(route.fromRegionId, route.toRegionId),
+    route.routeType
+  ]));
 
   return map.regions.flatMap((region) =>
     region.adjacentRegionIds.flatMap((adjacentRegionId) => {
-      if (region.id > adjacentRegionId || routedEdges.has(edgeKey(region.id, adjacentRegionId))) {
+      if (region.id > adjacentRegionId) {
         return [];
       }
 
       const adjacentRegion = regionsById.get(adjacentRegionId);
-      return adjacentRegion ? [{ from: region, to: adjacentRegion }] : [];
+      if (!adjacentRegion) {
+        return [];
+      }
+
+      const key = edgeKey(region.id, adjacentRegionId);
+      return [{
+        from: region,
+        to: adjacentRegion,
+        routeType: routeTypesByEdge.get(key) ?? "OperationalRoute"
+      }];
     })
   );
 }
@@ -1092,24 +1099,32 @@ function edgeKey(firstRegionId: string, secondRegionId: string) {
   return [firstRegionId, secondRegionId].sort().join("::");
 }
 
-function resolveUnitCounterPosition(
-  region: RegionDefinition,
-  index: number,
-  coordinateSystem: MapDefinition["coordinateSystem"]
-) {
-  const columns = Math.max(1, region.visual?.unitStackColumns ?? 2);
-  const offset = region.visual?.unitStackOffset ?? { x: 0, y: 58 };
-  const column = index % columns;
-  const row = Math.floor(index / columns);
-  const cellWidth = 48;
-  const cellHeight = 43;
-  const x = region.position.x + offset.x + (column - (columns - 1) / 2) * cellWidth;
-  const y = region.position.y + offset.y + row * cellHeight;
+function resolveUnitSlotPositions(count: number) {
+  if (count <= 1) {
+    return [{ x: 0, y: 29 }];
+  }
 
-  return {
-    x: clamp(x, 26, coordinateSystem.width - 26),
-    y: clamp(y, 24, coordinateSystem.height - 24)
-  };
+  if (count === 2) {
+    return [
+      { x: -15, y: 29 },
+      { x: 15, y: 29 }
+    ];
+  }
+
+  if (count === 3) {
+    return [
+      { x: -30, y: 29 },
+      { x: 0, y: 29 },
+      { x: 30, y: 29 }
+    ];
+  }
+
+  return [
+    { x: -15, y: 17 },
+    { x: 15, y: 17 },
+    { x: -15, y: 35 },
+    { x: 15, y: 35 }
+  ];
 }
 
 function splitRegionName(name: string) {
@@ -1125,12 +1140,20 @@ function splitRegionName(name: string) {
   ];
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
+function formatFeatureLabel(feature: string) {
+  if (feature === "SupplyDepot") {
+    return "D";
+  }
 
-function distance(x1: number, y1: number, x2: number, y2: number) {
-  return Math.hypot(x2 - x1, y2 - y1);
+  if (feature === "Airfield") {
+    return "A";
+  }
+
+  if (feature === "Fortified") {
+    return "F";
+  }
+
+  return feature.charAt(0);
 }
 
 function groupUnitsByRegion(units: UnitState[]) {
