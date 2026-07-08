@@ -45,13 +45,10 @@ Turn results should be explainable from persisted data:
 
 Before building the React UI, add read endpoints that expose:
 
-- theatre/scenario list
-- current campaign summary
-- latest map state
-- unit state
-- resources
-- turn events
-- active tensions
-- tension history
+- theatre/scenario list: `GET /api/content/theatres`
+- scenario setup content: `GET /api/content/theatres/{theatreId}/scenarios/{scenarioId}`
+- current campaign summary: `GET /api/campaigns/{campaignUid}`
+- latest map, units, resources, active tensions, and tension history: `GET /api/campaigns/{campaignUid}/state`
+- persisted turn events: `GET /api/campaigns/{campaignUid}/events`
 
 The UI should not need to reconstruct rules from raw database tables.

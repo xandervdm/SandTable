@@ -71,10 +71,15 @@ Important files:
 Current API routes:
 
 - `GET /api/health`
+- `GET /api/content/theatres`
+- `GET /api/content/theatres/{theatreId}`
+- `GET /api/content/theatres/{theatreId}/scenarios/{scenarioId}`
 - `POST /api/campaigns`
 - `GET /api/campaigns`
 - `GET /api/campaigns/{campaignUid}`
 - `GET /api/campaigns/{campaignUid}/snapshot`
+- `GET /api/campaigns/{campaignUid}/state`
+- `GET /api/campaigns/{campaignUid}/events`
 - `POST /api/campaigns/{campaignUid}/commands`
 - `POST /api/campaigns/{campaignUid}/resolve-turn`
 - `POST /api/campaigns/{campaignUid}/tensions/{cardId}/choose`

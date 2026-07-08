@@ -13,6 +13,57 @@ public sealed record GameContentBundle(
 
 public sealed class GameContentRepository(IWebHostEnvironment environment, IConfiguration configuration)
 {
+    public async Task<IReadOnlyList<TheatreSummaryResponse>> ListTheatresAsync(CancellationToken cancellationToken = default)
+    {
+        var contentRoot = ResolveContentRoot();
+        var theatresRoot = Path.Combine(contentRoot, "theatres");
+        if (!Directory.Exists(theatresRoot))
+        {
+            return Array.Empty<TheatreSummaryResponse>();
+        }
+
+        var theatres = new List<TheatreSummaryResponse>();
+        foreach (var theatrePath in Directory.EnumerateDirectories(theatresRoot).OrderBy(path => path, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var mapPath = Path.Combine(theatrePath, "map.json");
+            if (!File.Exists(mapPath))
+            {
+                continue;
+            }
+
+            var map = await ReadJsonAsync<MapDefinition>(mapPath, cancellationToken);
+            var scenarios = await LoadScenarioSummariesAsync(theatrePath, cancellationToken);
+            theatres.Add(new TheatreSummaryResponse(map.TheatreId, map.Name, scenarios));
+        }
+
+        return theatres;
+    }
+
+    public async Task<TheatreSummaryResponse?> GetTheatreSummaryAsync(
+        string theatreId,
+        CancellationToken cancellationToken = default)
+    {
+        var theatrePath = ResolveTheatrePath(theatreId);
+        var map = await ReadJsonAsync<MapDefinition>(Path.Combine(theatrePath, "map.json"), cancellationToken);
+        var scenarios = await LoadScenarioSummariesAsync(theatrePath, cancellationToken);
+        return new TheatreSummaryResponse(map.TheatreId, map.Name, scenarios);
+    }
+
+    public async Task<ScenarioContentResponse> LoadScenarioContentAsync(
+        string theatreId,
+        string scenarioId,
+        CancellationToken cancellationToken = default)
+    {
+        var content = await LoadAsync(theatreId, scenarioId, cancellationToken);
+        return new ScenarioContentResponse(
+            content.Map,
+            content.Scenario,
+            content.Units,
+            content.Doctrines,
+            content.Events);
+    }
+
     public async Task<GameContentBundle> LoadAsync(
         string theatreId = "north-africa",
         string scenarioId = "north-africa-1942",
@@ -36,16 +87,27 @@ public sealed class GameContentRepository(IWebHostEnvironment environment, IConf
 
     private string ResolveTheatrePath(string theatreId)
     {
+        var theatrePath = Path.Combine(ResolveContentRoot(), "theatres", theatreId);
+        if (!Directory.Exists(theatrePath))
+        {
+            throw new DirectoryNotFoundException($"Could not locate content/theatres/{theatreId}.");
+        }
+
+        return theatrePath;
+    }
+
+    private string ResolveContentRoot()
+    {
         var configuredRoot = configuration["SandTable:ContentRoot"];
         if (!string.IsNullOrWhiteSpace(configuredRoot))
         {
-            return Path.Combine(configuredRoot, "theatres", theatreId);
+            return configuredRoot;
         }
 
         var current = new DirectoryInfo(environment.ContentRootPath);
         while (current is not null)
         {
-            var contentPath = Path.Combine(current.FullName, "content", "theatres", theatreId);
+            var contentPath = Path.Combine(current.FullName, "content");
             if (Directory.Exists(contentPath))
             {
                 return contentPath;
@@ -54,7 +116,30 @@ public sealed class GameContentRepository(IWebHostEnvironment environment, IConf
             current = current.Parent;
         }
 
-        throw new DirectoryNotFoundException($"Could not locate content/theatres/{theatreId} from {environment.ContentRootPath}.");
+        throw new DirectoryNotFoundException($"Could not locate content from {environment.ContentRootPath}.");
+    }
+
+    private static async Task<IReadOnlyList<ScenarioSummaryResponse>> LoadScenarioSummariesAsync(
+        string theatrePath,
+        CancellationToken cancellationToken)
+    {
+        var summaries = new List<ScenarioSummaryResponse>();
+        foreach (var scenarioPath in Directory.EnumerateFiles(theatrePath, "scenario*.json").OrderBy(path => path, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var scenario = await ReadJsonAsync<ScenarioDefinition>(scenarioPath, cancellationToken);
+            summaries.Add(new ScenarioSummaryResponse(
+                scenario.ScenarioId,
+                scenario.TheatreId,
+                scenario.Name,
+                scenario.StartDate,
+                scenario.MaxTurns,
+                scenario.DefaultSide));
+        }
+
+        return summaries
+            .OrderBy(summary => summary.ScenarioId, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static async Task<T> ReadJsonAsync<T>(string path, CancellationToken cancellationToken)

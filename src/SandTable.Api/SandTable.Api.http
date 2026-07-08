@@ -7,6 +7,21 @@ Accept: application/json
 
 ###
 
+GET {{SandTable.Api_HostAddress}}/api/content/theatres
+Accept: application/json
+
+###
+
+GET {{SandTable.Api_HostAddress}}/api/content/theatres/north-africa
+Accept: application/json
+
+###
+
+GET {{SandTable.Api_HostAddress}}/api/content/theatres/north-africa/scenarios/north-africa-1942
+Accept: application/json
+
+###
+
 POST {{SandTable.Api_HostAddress}}/api/campaigns
 Content-Type: application/json
 
@@ -24,6 +39,16 @@ Accept: application/json
 ###
 
 GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/snapshot
+Accept: application/json
+
+###
+
+GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/state
+Accept: application/json
+
+###
+
+GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/events
 Accept: application/json
 
 ###

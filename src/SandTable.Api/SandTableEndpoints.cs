@@ -8,6 +8,49 @@ public static class SandTableEndpoints
     {
         var group = app.MapGroup("/api");
 
+        group.MapGet("/content/theatres", async (
+            GameContentRepository contentRepository,
+            CancellationToken cancellationToken) =>
+        {
+            return Results.Ok(await contentRepository.ListTheatresAsync(cancellationToken));
+        });
+
+        group.MapGet("/content/theatres/{theatreId}", async (
+            string theatreId,
+            GameContentRepository contentRepository,
+            CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                var theatre = await contentRepository.GetTheatreSummaryAsync(theatreId, cancellationToken);
+                return theatre is null ? Results.NotFound() : Results.Ok(theatre);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return Results.NotFound();
+            }
+        });
+
+        group.MapGet("/content/theatres/{theatreId}/scenarios/{scenarioId}", async (
+            string theatreId,
+            string scenarioId,
+            GameContentRepository contentRepository,
+            CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                return Results.Ok(await contentRepository.LoadScenarioContentAsync(theatreId, scenarioId, cancellationToken));
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return Results.NotFound();
+            }
+            catch (FileNotFoundException)
+            {
+                return Results.NotFound();
+            }
+        });
+
         group.MapPost("/campaigns", async (
             CreateCampaignRequest request,
             CampaignService service,
@@ -38,6 +81,30 @@ public static class SandTableEndpoints
         {
             var snapshot = await service.GetLatestSnapshotAsync(campaignUid, cancellationToken);
             return snapshot is null ? Results.NotFound() : Results.Ok(snapshot);
+        });
+
+        group.MapGet("/campaigns/{campaignUid:guid}/state", async (
+            Guid campaignUid,
+            CampaignService service,
+            CancellationToken cancellationToken) =>
+        {
+            var state = await service.GetCampaignStateAsync(campaignUid, cancellationToken);
+            return state is null ? Results.NotFound() : Results.Ok(state);
+        });
+
+        group.MapGet("/campaigns/{campaignUid:guid}/events", async (
+            Guid campaignUid,
+            int? turnNumber,
+            int? limit,
+            CampaignService service,
+            CancellationToken cancellationToken) =>
+        {
+            var events = await service.ListCampaignEventsAsync(
+                campaignUid,
+                turnNumber,
+                limit ?? 100,
+                cancellationToken);
+            return events is null ? Results.NotFound() : Results.Ok(events);
         });
 
         group.MapPost("/campaigns/{campaignUid:guid}/commands", async (

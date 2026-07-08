@@ -216,6 +216,79 @@ public sealed class CampaignService(
             snapshot.State);
     }
 
+    public async Task<CampaignStateResponse?> GetCampaignStateAsync(Guid campaignUid, CancellationToken cancellationToken)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        var campaign = await LoadCampaignAsync(connection, null, campaignUid, cancellationToken);
+        if (campaign is null)
+        {
+            return null;
+        }
+
+        var snapshot = await LoadLatestSnapshotAsync(connection, null, campaign.Id, cancellationToken);
+        var state = snapshot.State;
+        return new CampaignStateResponse(
+            campaign.ToSummary(),
+            snapshot.SnapshotUid,
+            state.TurnNumber,
+            state.CampaignDate,
+            state.Resources,
+            state.Regions,
+            state.Units,
+            state.ActiveTensions,
+            state.TensionHistory,
+            state.CampaignModifiers,
+            state.IsComplete,
+            state.Result);
+    }
+
+    public async Task<IReadOnlyList<CampaignEventResponse>?> ListCampaignEventsAsync(
+        Guid campaignUid,
+        int? turnNumber,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var safeLimit = Math.Clamp(limit, 1, 500);
+        await using var connection = connectionFactory.CreateConnection();
+        var campaign = await LoadCampaignAsync(connection, null, campaignUid, cancellationToken);
+        if (campaign is null)
+        {
+            return null;
+        }
+
+        var rows = await connection.QueryAsync<CampaignEventRow>(
+            new CommandDefinition(
+                """
+                select
+                    ce.uid as EventUid,
+                    ct.uid as CampaignTurnUid,
+                    ct.turn_number as TurnNumber,
+                    ce.event_sequence as Sequence,
+                    ce.event_type as EventType,
+                    ce.event_scope as EventScope,
+                    ce.side,
+                    ce.region_id as RegionId,
+                    ce.unit_id as UnitId,
+                    ce.summary,
+                    ce.event_payload::text as PayloadJson
+                from public.campaign_event ce
+                inner join public.campaign_turn ct on ct.id = ce.campaign_turn_id
+                where ce.campaign_id = @CampaignId
+                    and (@TurnNumber is null or ct.turn_number = @TurnNumber)
+                order by ct.turn_number desc, ce.event_sequence
+                limit @Limit
+                """,
+                new
+                {
+                    CampaignId = campaign.Id,
+                    TurnNumber = turnNumber,
+                    Limit = safeLimit
+                },
+                cancellationToken: cancellationToken));
+
+        return rows.Select(row => row.ToResponse()).ToArray();
+    }
+
     public async Task<SubmitCommandsResponse?> SubmitCommandsAsync(
         Guid campaignUid,
         SubmitCommandsRequest request,
@@ -1085,5 +1158,38 @@ internal sealed class CommandStorageRow
             UnitId,
             RegionId,
             payload?.TargetRegionId);
+    }
+}
+
+internal sealed class CampaignEventRow
+{
+    public Guid EventUid { get; init; }
+    public Guid CampaignTurnUid { get; init; }
+    public int TurnNumber { get; init; }
+    public int Sequence { get; init; }
+    public string EventType { get; init; } = string.Empty;
+    public string EventScope { get; init; } = string.Empty;
+    public string? Side { get; init; }
+    public string? RegionId { get; init; }
+    public string? UnitId { get; init; }
+    public string Summary { get; init; } = string.Empty;
+    public string PayloadJson { get; init; } = "{}";
+
+    public CampaignEventResponse ToResponse()
+    {
+        var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(PayloadJson, ApiJson.SerializerOptions)
+            ?? new Dictionary<string, object?>();
+        return new CampaignEventResponse(
+            EventUid,
+            CampaignTurnUid,
+            TurnNumber,
+            Sequence,
+            Enum.Parse<GameEventType>(EventType),
+            Enum.Parse<GameEventScope>(EventScope),
+            Side is null ? null : Enum.Parse<Side>(Side),
+            RegionId,
+            UnitId,
+            Summary,
+            payload);
     }
 }

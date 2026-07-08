@@ -18,6 +18,26 @@ public sealed record SubmitCommandRequest(
 
 public sealed record ChooseTensionOptionRequest(string OptionId);
 
+public sealed record TheatreSummaryResponse(
+    string TheatreId,
+    string Name,
+    IReadOnlyList<ScenarioSummaryResponse> Scenarios);
+
+public sealed record ScenarioSummaryResponse(
+    string ScenarioId,
+    string TheatreId,
+    string Name,
+    DateOnly StartDate,
+    int MaxTurns,
+    Side DefaultSide);
+
+public sealed record ScenarioContentResponse(
+    MapDefinition Map,
+    ScenarioDefinition Scenario,
+    UnitCatalog Units,
+    DoctrineCatalog Doctrines,
+    ScenarioEventCatalog Events);
+
 public sealed record CampaignSummaryResponse(
     Guid CampaignUid,
     string Name,
@@ -44,6 +64,33 @@ public sealed record SnapshotResponse(
     int TurnNumber,
     bool IsLatest,
     GameState State);
+
+public sealed record CampaignStateResponse(
+    CampaignSummaryResponse Campaign,
+    Guid SnapshotUid,
+    int TurnNumber,
+    DateOnly CampaignDate,
+    Resources Resources,
+    IReadOnlyList<RegionState> Regions,
+    IReadOnlyList<UnitState> Units,
+    IReadOnlyList<StrategicTensionCard> ActiveTensions,
+    IReadOnlyList<TensionDecision> TensionHistory,
+    IReadOnlyList<CampaignModifier> CampaignModifiers,
+    bool IsComplete,
+    string? Result);
+
+public sealed record CampaignEventResponse(
+    Guid EventUid,
+    Guid CampaignTurnUid,
+    int TurnNumber,
+    int Sequence,
+    GameEventType EventType,
+    GameEventScope EventScope,
+    Side? Side,
+    string? RegionId,
+    string? UnitId,
+    string Summary,
+    IReadOnlyDictionary<string, object?> Payload);
 
 public sealed record SubmitCommandsResponse(
     Guid CampaignUid,
