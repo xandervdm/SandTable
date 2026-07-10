@@ -15,7 +15,7 @@ public class StrategicTensionTests
     public async Task Generator_uses_catalog_caps_cards_and_avoids_duplicates()
     {
         var content = await LoadContentAsync();
-        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var state = CreateState(content);
         var generator = new Engine.BasicTensionGenerator();
 
         var firstCard = generator.Generate(state, content.TensionCards, randomSeed: 1942, maxCards: 1);
@@ -33,7 +33,7 @@ public class StrategicTensionTests
     public async Task Generator_is_deterministic_for_same_state_and_seed()
     {
         var content = await LoadContentAsync();
-        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var state = CreateState(content);
         var generator = new Engine.BasicTensionGenerator();
 
         var first = generator.Generate(state, content.TensionCards, randomSeed: 500, maxCards: 2);
@@ -47,7 +47,7 @@ public class StrategicTensionTests
     public async Task Choosing_valid_option_applies_effects_records_history_and_removes_card()
     {
         var content = await LoadContentAsync();
-        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var state = CreateState(content);
         var card = new Engine.BasicTensionGenerator()
             .Generate(state, content.TensionCards, randomSeed: 1942, maxCards: 2)
             .First();
@@ -69,7 +69,7 @@ public class StrategicTensionTests
     public async Task Choosing_invalid_card_or_option_is_rejected()
     {
         var content = await LoadContentAsync();
-        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var state = CreateState(content);
         var card = new Engine.BasicTensionGenerator()
             .Generate(state, content.TensionCards, randomSeed: 1942, maxCards: 2)
             .First();
@@ -86,7 +86,7 @@ public class StrategicTensionTests
     public async Task Effect_application_is_deterministic()
     {
         var content = await LoadContentAsync();
-        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var state = CreateState(content);
         var effects = new Engine.GameEffect[]
         {
             new Engine.AddResourceEffect(Engine.ResourceType.Fuel, 3, "Fuel increases by 3."),
@@ -95,7 +95,7 @@ public class StrategicTensionTests
 
         var result = new Engine.GameEffectApplier().Apply(state, effects, startingEventSequence: 1);
 
-        Assert.Equal(state.Resources.Fuel + 3, result.State.Resources.Fuel);
+        Assert.Equal(state.Resources[state.PlayerSide].Fuel + 3, result.State.Resources[state.PlayerSide].Fuel);
         Assert.Equal(6, result.State.Units.Single(unit => unit.Id == "15th-panzer").Supply);
         Assert.Empty(result.Events);
     }
@@ -104,7 +104,7 @@ public class StrategicTensionTests
     public async Task Game_state_with_tensions_round_trips_as_json()
     {
         var content = await LoadContentAsync();
-        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var state = CreateState(content);
         var cards = new Engine.BasicTensionGenerator().Generate(state, content.TensionCards, randomSeed: 1942, maxCards: 2);
         var stateWithTensions = state with { ActiveTensions = cards };
 
@@ -120,7 +120,7 @@ public class StrategicTensionTests
     public async Task Turn_resolution_generates_catalog_tensions()
     {
         var content = await LoadContentAsync();
-        var startingState = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var startingState = CreateState(content);
         var aiCommands = new Engine.BasicAiPlanner().Plan(startingState, Engine.Side.Allies);
 
         var resolution = new Engine.TurnResolver().Resolve(
@@ -134,13 +134,22 @@ public class StrategicTensionTests
         Assert.Contains(resolution.Events, gameEvent => gameEvent.Summary.StartsWith("Operational opportunity emerged:", StringComparison.Ordinal));
     }
 
-    private static async Task<(Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units, Engine.TensionCardCatalog TensionCards)> LoadContentAsync()
+    private static Engine.GameState CreateState((Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units, Engine.ReserveCatalog Reserves, Engine.TensionCardCatalog TensionCards) content) =>
+        new Engine.ScenarioFactory().CreateInitialState(
+            content.Map,
+            content.Scenario,
+            content.Units,
+            content.Reserves,
+            Engine.Side.Axis);
+
+    private static async Task<(Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units, Engine.ReserveCatalog Reserves, Engine.TensionCardCatalog TensionCards)> LoadContentAsync()
     {
         var theatrePath = Path.Combine(FindRepoRoot(), "content", "theatres", "north-africa");
         return (
             await ReadJsonAsync<Engine.MapDefinition>(Path.Combine(theatrePath, "map.json")),
             await ReadJsonAsync<Engine.ScenarioDefinition>(Path.Combine(theatrePath, "scenarios", "north-africa-1942.json")),
             await ReadJsonAsync<Engine.UnitCatalog>(Path.Combine(theatrePath, "units.json")),
+            await ReadJsonAsync<Engine.ReserveCatalog>(Path.Combine(theatrePath, "reserves.json")),
             await ReadJsonAsync<Engine.TensionCardCatalog>(Path.Combine(theatrePath, "tension-cards.json")));
     }
 

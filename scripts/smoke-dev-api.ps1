@@ -12,7 +12,6 @@ if ([string]::IsNullOrWhiteSpace($env:VULTR_POSTGRES_URL_SAND_TABLE_DEV)) {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-$artifacts = Join-Path $env:TEMP ('SandTableSmokeArtifacts-' + [guid]::NewGuid().ToString('N'))
 $stdout = Join-Path $env:TEMP ('SandTableApi-' + [guid]::NewGuid().ToString('N') + '.out.log')
 $stderr = Join-Path $env:TEMP ('SandTableApi-' + [guid]::NewGuid().ToString('N') + '.err.log')
 $baseUrl = "http://127.0.0.1:$Port"
@@ -52,9 +51,9 @@ try {
     $env:DOTNET_ADD_GLOBAL_TOOLS_TO_PATH = '0'
     $env:DOTNET_NOLOGO = '1'
 
-    dotnet build SandTable.slnx --artifacts-path $artifacts /p:UseSharedCompilation=false
+    dotnet build SandTable.slnx --no-restore /p:UseSharedCompilation=false
 
-    $apiDll = Join-Path $artifacts 'bin\SandTable.Api\debug\SandTable.Api.dll'
+    $apiDll = Join-Path $repoRoot 'src\SandTable.Api\bin\Debug\net10.0\SandTable.Api.dll'
     if (-not (Test-Path $apiDll)) {
         throw "Could not find built API assembly at $apiDll."
     }
@@ -99,12 +98,30 @@ try {
         throw 'Create campaign response did not include campaign.campaignUid.'
     }
 
+    $unit = $campaign.state.units | Where-Object { $_.id -eq '21st-panzer' } | Select-Object -First 1
+    $region = $campaign.state.regions | Where-Object { $_.id -eq $unit.regionId } | Select-Object -First 1
+    $targetRegionId = $region.adjacentRegionIds |
+        Where-Object {
+            $candidate = $_
+            -not ($campaign.state.units | Where-Object {
+                $_.regionId -eq $candidate -and $_.side -ne 'Axis' -and $_.status -ne 'Destroyed'
+            })
+        } |
+        Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($targetRegionId)) {
+        throw 'Could not select a legal smoke-test move target.'
+    }
+
     Invoke-SmokeJson -Method Post -Path "/api/campaigns/$campaignUid/commands" -Body @{
         commands = @(
             @{
-                commandType = 'Move'
-                unitId = '21st-panzer'
-                targetRegionId = 'gazala'
+                sequence = 1
+                command = @{
+                    commandType = 'Move'
+                    unitId = '21st-panzer'
+                    fromRegionId = $unit.regionId
+                    pathRegionIds = @($targetRegionId)
+                }
             }
         )
     } | Out-Null

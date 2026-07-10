@@ -4,12 +4,14 @@
 
 This document is the reviewed Phase 0 contract for the next SandTable development baseline.
 
+Implementation status: **Active since the verified Phase 3 development reset on 11 July 2026.** The canonical package, Engine state, typed command payload, Dapper persistence, and reviewed SQL shapes below are now the only supported development contracts.
+
 - Content contract: `sandtable-content-v2`
 - Engine and snapshot contract: `sandtable-engine-v2`
 - Compatibility: development reset only; V1 content, snapshots, commands, and API payloads will not be read after the coordinated Phase 3 reset
 - Implementation order: Phase 2 establishes the package and validation contract; Phase 3 introduces the breaking Engine, API, and SQL shapes; later phases activate the documented mechanics
 
-This document freezes the target shapes. It does not claim that the current V1 implementation already accepts them.
+This document freezes the active shapes. The pre-reset V1 content, command, snapshot, and API payloads are intentionally unsupported.
 
 ## Architectural Ownership
 

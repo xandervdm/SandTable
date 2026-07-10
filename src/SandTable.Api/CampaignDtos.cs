@@ -12,10 +12,8 @@ public sealed record CreateCampaignRequest(
 public sealed record SubmitCommandsRequest(IReadOnlyList<SubmitCommandRequest> Commands);
 
 public sealed record SubmitCommandRequest(
-    OrderType CommandType,
-    string? UnitId,
-    string? RegionId,
-    string? TargetRegionId);
+    int Sequence,
+    CommandPayload Command);
 
 public sealed record ChooseTensionOptionRequest(string OptionId);
 
@@ -98,9 +96,13 @@ public sealed record CampaignStateResponse(
     Guid SnapshotUid,
     int TurnNumber,
     DateOnly CampaignDate,
-    Resources Resources,
+    IReadOnlyDictionary<Side, Resources> Resources,
     IReadOnlyList<RegionState> Regions,
+    IReadOnlyList<RouteState> Routes,
     IReadOnlyList<UnitState> Units,
+    IReadOnlyList<ReserveState> Reserves,
+    IReadOnlyDictionary<string, int> VictoryProgress,
+    IReadOnlyList<string> ScenarioEventHistory,
     IReadOnlyList<StrategicTensionCard> ActiveTensions,
     IReadOnlyList<TensionDecision> TensionHistory,
     IReadOnlyList<CampaignModifier> CampaignModifiers,

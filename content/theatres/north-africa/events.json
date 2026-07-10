@@ -1,14 +1,21 @@
 {
   "events": [
     {
-      "id": "enemy-reinforcements-el-alamein",
-      "trigger": { "turn": 6 },
-      "effect": {
-        "type": "AddUnit",
-        "unitId": "allied-armoured-reserve",
-        "regionId": "el-alamein"
+      "id": "allied-reserve-released",
+      "trigger": {
+        "turn": 6,
+        "phase": "BeforeResolution"
       },
-      "message": "Enemy reinforcements are arriving near El Alamein."
+      "conditions": [],
+      "effects": [
+        {
+          "effectType": "setReserveStatus",
+          "reserveId": "allied-armoured-reserve",
+          "reserveStatus": "Available",
+          "description": "The Allied armoured reserve becomes available."
+        }
+      ],
+      "message": "Allied armoured reserves are ready near El Alamein."
     }
   ]
 }

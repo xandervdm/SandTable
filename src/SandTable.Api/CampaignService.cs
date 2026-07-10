@@ -55,9 +55,9 @@ public sealed class CampaignService(
                 new Dictionary<string, string[]> { ["scenarioId"] = ["The selected scenario was not found in this theatre."] });
         }
 
-        var playerSide = request.PlayerSide.Value;
+        var playerSide = request.PlayerSide.GetValueOrDefault();
+        var enemySide = playerSide == Side.Axis ? Side.Allies : Side.Axis;
         var seed = request.RandomSeed ?? RandomNumberGenerator.GetInt32(1, int.MaxValue);
-        var initialState = scenarioFactory.CreateInitialState(content.Map, content.Scenario, content.Units, playerSide, seed);
 
         await using var connection = connectionFactory.CreateConnection();
         await connection.OpenAsync(cancellationToken);
@@ -110,15 +110,15 @@ public sealed class CampaignService(
                     devPlayer.UserAccountId,
                     devPlayer.PlayerProfileId,
                     devPlayer.CommandProfileId,
-                    initialState.TheatreId,
-                    initialState.ScenarioId,
+                    TheatreId = content.Map.TheatreId,
+                    ScenarioId = content.Scenario.ScenarioId,
                     Name = campaignName,
-                    PlayerSide = initialState.PlayerSide.ToString(),
-                    EnemySide = initialState.EnemySide.ToString(),
-                    CurrentTurnNumber = initialState.TurnNumber,
-                    MaxTurns = initialState.MaxTurns,
-                    CampaignStartDate = ToDatabaseDate(initialState.CampaignDate),
-                    CurrentCampaignDate = ToDatabaseDate(initialState.CampaignDate),
+                    PlayerSide = playerSide.ToString(),
+                    EnemySide = enemySide.ToString(),
+                    CurrentTurnNumber = 1,
+                    content.Scenario.MaxTurns,
+                    CampaignStartDate = ToDatabaseDate(content.Scenario.StartDate),
+                    CurrentCampaignDate = ToDatabaseDate(content.Scenario.StartDate),
                     Actor
                 },
                 transaction,
@@ -148,12 +148,20 @@ public sealed class CampaignService(
                 new
                 {
                     CampaignId = campaign.Id,
-                    TurnNumber = initialState.TurnNumber,
+                    TurnNumber = 1,
                     RandomSeed = seed,
                     Actor
                 },
                 transaction,
                 cancellationToken: cancellationToken));
+
+        var initialState = scenarioFactory.CreateInitialState(
+            content.Map,
+            content.Scenario,
+            content.Units,
+            content.Reserves,
+            playerSide,
+            seed);
 
         var snapshot = await InsertSnapshotAsync(
             connection,
@@ -265,12 +273,16 @@ public sealed class CampaignService(
             state.CampaignDate,
             state.Resources,
             state.Regions,
+            state.Routes,
             state.Units,
+            state.Reserves,
+            state.VictoryProgress,
+            state.ScenarioEventHistory,
             state.ActiveTensions,
             state.TensionHistory,
             state.CampaignModifiers,
             state.IsComplete,
-            state.Result);
+            state.Result?.ToString());
     }
 
     public async Task<IReadOnlyList<CampaignEventResponse>?> ListCampaignEventsAsync(
@@ -426,22 +438,10 @@ public sealed class CampaignService(
         var snapshot = await LoadLatestSnapshotAsync(connection, transaction, campaign.Id, cancellationToken);
         CommandValidator.ValidateSubmitCommands(snapshot.State, Enum.Parse<Side>(campaign.PlayerSide), request);
 
-        var nextSequence = await connection.QuerySingleAsync<int>(
-            new CommandDefinition(
-                """
-                select coalesce(max(command_sequence), 0) + 1
-                from public.campaign_command
-                where campaign_turn_id = @CampaignTurnId
-                    and command_source = 'Human'
-                """,
-                new { CampaignTurnId = turn.Id },
-                transaction,
-                cancellationToken: cancellationToken));
-
         for (var index = 0; index < request.Commands.Count; index++)
         {
             var command = request.Commands[index];
-            var regionId = command.RegionId ?? snapshot.State.Units.FirstOrDefault(unit => unit.Id == command.UnitId)?.RegionId;
+            var submitted = new SubmittedCommand(command.Sequence, CommandSource.Human, snapshot.State.PlayerSide, command.Command);
             await connection.ExecuteAsync(
                 new CommandDefinition(
                     """
@@ -481,12 +481,12 @@ public sealed class CampaignService(
                         CampaignId = campaign.Id,
                         CampaignTurnId = turn.Id,
                         SnapshotId = snapshot.Id,
-                        CommandSequence = nextSequence + index,
+                        CommandSequence = command.Sequence,
                         Side = campaign.PlayerSide,
-                        command.UnitId,
-                        RegionId = regionId,
-                        CommandType = command.CommandType.ToString(),
-                        CommandPayload = JsonSerializer.Serialize(new CommandPayload(command.TargetRegionId), ApiJson.SerializerOptions),
+                        submitted.UnitId,
+                        RegionId = submitted.RegionId ?? submitted.TargetRegionId,
+                        CommandType = submitted.CommandType.ToString(),
+                        CommandPayload = JsonSerializer.Serialize<CommandPayload>(submitted.Payload, ApiJson.SerializerOptions),
                         Actor
                     },
                     transaction,
@@ -742,7 +742,7 @@ public sealed class CampaignService(
                     Status = campaignStatus,
                     CurrentTurnNumber = resolution.NextState.TurnNumber,
                     CurrentCampaignDate = ToDatabaseDate(resolution.NextState.CampaignDate),
-                    resolution.NextState.Result,
+                    Result = resolution.NextState.Result?.ToString(),
                     Actor
                 },
                 transaction,
@@ -806,7 +806,7 @@ public sealed class CampaignService(
             turn.TurnNumber,
             resolution.NextState.TurnNumber,
             resolution.NextState.IsComplete,
-            resolution.NextState.Result,
+            resolution.NextState.Result?.ToString(),
             resolution.Summary,
             persistedEvents);
     }
@@ -922,6 +922,7 @@ public sealed class CampaignService(
                     snapshot_type as SnapshotType,
                     turn_number as TurnNumber,
                     is_latest as IsLatest,
+                    engine_version as EngineVersion,
                     game_state::text as GameStateJson
                 from public.campaign_snapshot
                 where campaign_id = @CampaignId
@@ -1063,9 +1064,9 @@ public sealed class CampaignService(
                         CommandSequence = command.Sequence,
                         Side = command.Side.ToString(),
                         command.UnitId,
-                        command.RegionId,
+                        RegionId = command.RegionId ?? command.TargetRegionId,
                         CommandType = command.CommandType.ToString(),
-                        CommandPayload = JsonSerializer.Serialize(new CommandPayload(command.TargetRegionId), ApiJson.SerializerOptions),
+                        CommandPayload = JsonSerializer.Serialize<CommandPayload>(command.Payload, ApiJson.SerializerOptions),
                         Actor
                     },
                     transaction,
@@ -1185,7 +1186,6 @@ public sealed class CampaignService(
         };
     }
 
-    internal sealed record CommandPayload(string? TargetRegionId);
 }
 
 internal sealed class CampaignIdentity
@@ -1244,10 +1244,16 @@ internal sealed class SnapshotStorageRow
     public string SnapshotType { get; init; } = string.Empty;
     public int TurnNumber { get; init; }
     public bool IsLatest { get; init; }
+    public string EngineVersion { get; init; } = string.Empty;
     public string GameStateJson { get; init; } = string.Empty;
 
     public SnapshotRow ToSnapshotRow()
     {
+        if (EngineVersion != EngineBaseline.CurrentVersion)
+        {
+            throw new InvalidOperationException(
+                $"Snapshot '{SnapshotUid}' uses engine version '{EngineVersion}', expected '{EngineBaseline.CurrentVersion}'.");
+        }
         var state = JsonSerializer.Deserialize<GameState>(GameStateJson, ApiJson.SerializerOptions)
             ?? throw new InvalidOperationException("Stored snapshot does not contain a valid game state.");
         return new SnapshotRow(Id, SnapshotUid, SnapshotType, TurnNumber, IsLatest, state);
@@ -1274,15 +1280,18 @@ internal sealed class CommandStorageRow
 
     public SubmittedCommand ToSubmittedCommand()
     {
-        var payload = JsonSerializer.Deserialize<CampaignService.CommandPayload>(CommandPayloadJson, ApiJson.SerializerOptions);
+        var payload = JsonSerializer.Deserialize<CommandPayload>(CommandPayloadJson, ApiJson.SerializerOptions)
+            ?? throw new InvalidOperationException("Stored command does not contain a valid typed payload.");
+        var storedType = Enum.Parse<OrderType>(CommandType);
+        if (payload.CommandType != storedType)
+        {
+            throw new InvalidOperationException($"Stored command type '{CommandType}' does not match payload type '{payload.CommandType}'.");
+        }
         return new SubmittedCommand(
             Sequence,
             Enum.Parse<CommandSource>(Source),
             Enum.Parse<Side>(Side),
-            Enum.Parse<OrderType>(CommandType),
-            UnitId,
-            RegionId,
-            payload?.TargetRegionId);
+            payload);
     }
 }
 

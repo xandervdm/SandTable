@@ -274,11 +274,20 @@ export function App() {
       if (currentTurnStatus === "Planning") {
         await client.submitCommands(
           activeCampaignUid,
-          pendingOrders.map((order) => ({
-            commandType: order.commandType,
-            unitId: order.unitId,
-            regionId: order.fromRegionId,
-            targetRegionId: order.targetRegionId
+          pendingOrders.map((order, index) => ({
+            sequence: index + 1,
+            command: order.commandType === "Move" || order.commandType === "Attack"
+              ? {
+                  commandType: order.commandType,
+                  unitId: order.unitId,
+                  fromRegionId: order.fromRegionId,
+                  pathRegionIds: order.targetRegionId ? [order.targetRegionId] : []
+                }
+              : {
+                  commandType: "HoldPosition" as const,
+                  unitId: order.unitId,
+                  regionId: order.fromRegionId
+                }
           }))
         );
         submittedOrders = true;
@@ -553,7 +562,9 @@ export function App() {
 }
 
 function ResourceStrip({ state }: { state: CampaignStateResponse | null }) {
-  const resources = state?.resources;
+  const resources = state
+    ? state.resources[state.campaign.playerSide as "Axis" | "Allies"]
+    : undefined;
   const items = [
     { label: "Supplies", value: resources?.supplies ?? 0, icon: Package },
     { label: "Manpower", value: resources?.manpower ?? 0, icon: Users },
@@ -1035,14 +1046,16 @@ function formatCampaignNameSuffix(date = new Date()) {
 }
 
 function describeVictoryCondition(content: ScenarioContent | null) {
-  const condition = content?.scenario.victoryConditions[0];
+  const condition = content?.scenario.victoryRules.outcomes
+    .find((outcome) => outcome.result === "Victory")
+    ?.allOf[0];
   if (!condition) {
     return "Victory conditions are defined by the selected scenario.";
   }
 
   if (condition.type === "ControlRegion") {
     const region = content?.map.regions.find((item) => item.id === condition.regionId);
-    return `${condition.requiredOwner} must control ${region?.name ?? condition.regionId}.`;
+    return `${condition.side ?? "Player"} must control ${region?.name ?? condition.regionId}.`;
   }
 
   return "Complete the selected scenario's victory conditions.";

@@ -163,6 +163,8 @@ Exit gate:
 
 ### Phase 3 - Breaking Engine and Persistence Reset
 
+Status: **Complete — 11 July 2026.** The V2 Engine/content/command/state contracts are active without compatibility adapters, the reviewed SQL was deployed to a verified clean `sand_table` development database, and a fresh Dapper campaign completed create -> typed command -> resolve -> tension choice -> snapshot reload.
+
 1. Introduce the revised Engine models and commands without backward-compatibility adapters.
 2. Update database table definitions and check constraints directly under `database/public`.
 3. Keep JSON snapshots as the authoritative campaign-state durability boundary.

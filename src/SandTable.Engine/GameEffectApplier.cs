@@ -19,7 +19,7 @@ public sealed class GameEffectApplier : IGameEffectApplier
         IReadOnlyCollection<GameEffect> effects,
         int startingEventSequence)
     {
-        var resources = state.Resources;
+        var resources = state.Resources.ToDictionary(pair => pair.Key, pair => pair.Value);
         var units = state.Units.ToDictionary(unit => unit.Id, StringComparer.Ordinal);
         var regions = state.Regions.ToDictionary(region => region.Id, StringComparer.Ordinal);
         var modifiers = state.CampaignModifiers.ToList();
@@ -30,7 +30,7 @@ public sealed class GameEffectApplier : IGameEffectApplier
             switch (effect)
             {
                 case AddResourceEffect addResource:
-                    resources = ApplyResourceEffect(resources, addResource);
+                    resources[state.PlayerSide] = ApplyResourceEffect(resources[state.PlayerSide], addResource);
                     break;
 
                 case ModifyUnitStatEffect modifyUnit:

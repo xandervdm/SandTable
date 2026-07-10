@@ -38,21 +38,33 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 OrderType.Resupply => ResolveResupply(command, units, events),
                 OrderType.Recon => AddSimpleEvent(command, GameEventType.Recon, GameEventScope.Region, events, "Recon patrols report no major change."),
                 OrderType.Support => AddSimpleEvent(command, GameEventType.System, GameEventScope.Unit, events, "Support order acknowledged."),
+                OrderType.Deploy => Reject(command, "Reserve deployment resolution is introduced in Phase 6."),
                 _ => AddSimpleEvent(command, GameEventType.System, GameEventScope.Unit, events, "Unit holds position.")
             };
 
+            if (resolvedCommand.Accepted)
+            {
+                resolvedCommand = resolvedCommand with { Cost = CalculateCommandCost(startingState, command) };
+            }
             resolvedCommands.Add(resolvedCommand);
         }
 
         CaptureOccupiedRegions(regions, units);
 
         var result = ResolveCampaignResult(startingState, regions);
+        var nextTurnNumber = result.HasValue ? startingState.TurnNumber : startingState.TurnNumber + 1;
         var nextState = startingState with
         {
-            TurnNumber = startingState.TurnNumber + 1,
+            TurnNumber = nextTurnNumber,
             CampaignDate = startingState.CampaignDate.AddDays(7),
             Regions = regions.Values.OrderBy(region => region.Id, StringComparer.Ordinal).ToArray(),
             Units = units.Values.OrderBy(unit => unit.Id, StringComparer.Ordinal).ToArray(),
+            Reserves = startingState.Reserves
+                .Select(reserve => reserve.Status == ReserveStatus.Unavailable && reserve.AvailableTurn <= nextTurnNumber
+                    ? reserve with { Status = ReserveStatus.Available }
+                    : reserve)
+                .OrderBy(reserve => reserve.ReserveId, StringComparer.Ordinal)
+                .ToArray(),
             IsComplete = result is not null,
             Result = result,
             CampaignModifiers = AgeCampaignModifiers(startingState.CampaignModifiers)
@@ -65,7 +77,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 GameEventType.Victory,
                 GameEventScope.Campaign,
                 startingState.PlayerSide,
-                startingState.VictoryRegionId,
+                null,
                 null,
                 $"Campaign ended with {result}.",
                 new Dictionary<string, object?> { ["result"] = result }));
@@ -94,7 +106,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 {
                     events.Add(new GameEvent(
                         events.Count + 1,
-                        GameEventType.System,
+                        GameEventType.Tension,
                         GameEventScope.Campaign,
                         startingState.PlayerSide,
                         null,
@@ -166,7 +178,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 ["toRegionId"] = targetRegion.Id
             }));
 
-        return new ResolvedCommand(command, Accepted: true, RejectionReason: null);
+        return new ResolvedCommand(command, Accepted: true, RejectionReason: null, ZeroCost);
     }
 
     private static ResolvedCommand ResolveAttack(
@@ -212,7 +224,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 attacker.Id,
                 $"{attacker.Name} occupied {targetRegion.Name}.",
                 new Dictionary<string, object?> { ["toRegionId"] = targetRegion.Id }));
-            return new ResolvedCommand(command, Accepted: true, RejectionReason: null);
+            return new ResolvedCommand(command, Accepted: true, RejectionReason: null, ZeroCost);
         }
 
         var defender = defenders[0];
@@ -259,7 +271,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 ["defenceScore"] = defenceScore
             }));
 
-        return new ResolvedCommand(command, Accepted: true, RejectionReason: null);
+        return new ResolvedCommand(command, Accepted: true, RejectionReason: null, ZeroCost);
     }
 
     private static ResolvedCommand ResolveResupply(
@@ -287,7 +299,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             $"{unit.Name} replenished supplies.",
             new Dictionary<string, object?> { ["unitId"] = unit.Id }));
 
-        return new ResolvedCommand(command, Accepted: true, RejectionReason: null);
+        return new ResolvedCommand(command, Accepted: true, RejectionReason: null, ZeroCost);
     }
 
     private static ResolvedCommand AddSimpleEvent(
@@ -306,7 +318,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             command.UnitId,
             summary,
             new Dictionary<string, object?>()));
-        return new ResolvedCommand(command, Accepted: true, RejectionReason: null);
+        return new ResolvedCommand(command, Accepted: true, RejectionReason: null, ZeroCost);
     }
 
     private static bool TryGetUnitCommandContext(
@@ -361,7 +373,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
 
     private static ResolvedCommand Reject(SubmittedCommand command, string reason)
     {
-        return new ResolvedCommand(command, Accepted: false, RejectionReason: reason);
+        return new ResolvedCommand(command, Accepted: false, RejectionReason: reason, ZeroCost);
     }
 
     private static void CaptureOccupiedRegions(Dictionary<string, RegionState> regions, Dictionary<string, UnitState> units)
@@ -380,17 +392,96 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
         }
     }
 
-    private static string? ResolveCampaignResult(GameState startingState, Dictionary<string, RegionState> regions)
+    private static VictoryResult? ResolveCampaignResult(GameState startingState, Dictionary<string, RegionState> regions)
     {
-        if (startingState.VictoryRegionId is not null
-            && regions.TryGetValue(startingState.VictoryRegionId, out var victoryRegion)
-            && victoryRegion.Owner == startingState.PlayerSide)
+        foreach (var outcome in startingState.VictoryRules.Outcomes.OrderBy(outcome => outcome.Priority))
         {
-            return "Victory";
+            if (outcome.AllOf.All(condition => EvaluateVictoryCondition(condition, startingState, regions)))
+            {
+                return outcome.Result;
+            }
         }
 
-        return startingState.TurnNumber >= startingState.MaxTurns ? "Defeat" : null;
+        return null;
     }
+
+    private static bool EvaluateVictoryCondition(
+        VictoryConditionDefinition condition,
+        GameState state,
+        IReadOnlyDictionary<string, RegionState> regions)
+    {
+        var side = condition.Side.HasValue ? ResolveSide(condition.Side.Value, state) : (Side?)null;
+        return condition.Type switch
+        {
+            VictoryConditionType.ControlRegion =>
+                side.HasValue && condition.RegionId is not null && regions.TryGetValue(condition.RegionId, out var region) && region.Owner == side,
+            VictoryConditionType.ControlAtLeast =>
+                side.HasValue && condition.RequiredCount.HasValue && (condition.RegionIds ?? [])
+                    .Count(regionId => regions.TryGetValue(regionId, out var region) && region.Owner == side) >= condition.RequiredCount,
+            VictoryConditionType.VictoryPointsAtLeast =>
+                side.HasValue && condition.Threshold.HasValue && regions.Values
+                    .Where(region => region.Owner == side)
+                    .Sum(region => region.VictoryPoints) >= condition.Threshold,
+            VictoryConditionType.TurnNumberAtLeast =>
+                condition.TurnNumber.HasValue && state.TurnNumber >= condition.TurnNumber,
+            VictoryConditionType.SupplyConnected => false,
+            _ => false
+        };
+    }
+
+    private static Side ResolveSide(VictorySideSelector selector, GameState state) => selector switch
+    {
+        VictorySideSelector.Player => state.PlayerSide,
+        VictorySideSelector.Enemy => state.EnemySide,
+        VictorySideSelector.Axis => Side.Axis,
+        VictorySideSelector.Allies => Side.Allies,
+        _ => Side.Neutral
+    };
+
+    private static Resources CalculateCommandCost(GameState state, SubmittedCommand command)
+    {
+        if (!state.CommandCosts.TryGetValue(command.CommandType, out var definition))
+        {
+            return ZeroCost;
+        }
+
+        var movementCost = command.Payload switch
+        {
+            MoveCommandPayload move => CalculatePathMovementCost(state.Routes, move.FromRegionId, move.PathRegionIds),
+            AttackCommandPayload attack => CalculatePathMovementCost(state.Routes, attack.FromRegionId, attack.PathRegionIds),
+            _ => 0
+        };
+        return new Resources(
+            definition.FixedSupplies + definition.SuppliesPerMovementCost * movementCost,
+            Manpower: 0,
+            definition.FixedFuel + definition.FuelPerMovementCost * movementCost,
+            Industry: 0,
+            definition.BaseCommandPoints);
+    }
+
+    private static int CalculatePathMovementCost(
+        IReadOnlyList<RouteState> routes,
+        string fromRegionId,
+        IReadOnlyList<string> pathRegionIds)
+    {
+        var total = 0;
+        var current = fromRegionId;
+        foreach (var next in pathRegionIds)
+        {
+            var route = routes.FirstOrDefault(candidate =>
+                candidate.FromRegionId == current && candidate.ToRegionId == next ||
+                candidate.FromRegionId == next && candidate.ToRegionId == current);
+            if (route is null)
+            {
+                return 0;
+            }
+            total += route.MovementCost;
+            current = next;
+        }
+        return total;
+    }
+
+    private static readonly Resources ZeroCost = new(0, 0, 0, 0, 0);
 
     private static IReadOnlyList<CampaignModifier> AgeCampaignModifiers(IReadOnlyList<CampaignModifier> modifiers)
     {

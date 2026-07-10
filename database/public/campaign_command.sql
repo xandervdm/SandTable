@@ -30,7 +30,7 @@ create table public.campaign_command (
     constraint ck_campaign_command_sequence_positive check (command_sequence > 0),
     constraint ck_campaign_command_source check (command_source in ('Human', 'AI', 'System')),
     constraint ck_campaign_command_side check (side in ('Axis', 'Allies')),
-    constraint ck_campaign_command_type check (command_type in ('Move', 'Attack', 'Support', 'HoldPosition', 'Resupply', 'Recon')),
+    constraint ck_campaign_command_type check (command_type in ('Move', 'Attack', 'Support', 'HoldPosition', 'Resupply', 'Recon', 'Deploy')),
     constraint ck_campaign_command_status check (status in ('Planned', 'Accepted', 'Rejected', 'Resolved', 'Cancelled')),
     constraint ck_campaign_command_payload_object check (jsonb_typeof(command_payload) = 'object'),
     constraint ck_campaign_command_version_positive check (version > 0)

@@ -980,34 +980,11 @@ function colorForSide(side: Side) {
 
 function resolvePlayableRoutes(map: MapDefinition) {
   const regionsById = new Map(map.regions.map((region) => [region.id, region]));
-  const routeTypesByEdge = new Map(map.routes.map((route) => [
-    edgeKey(route.fromRegionId, route.toRegionId),
-    route.routeType
-  ]));
-
-  return map.regions.flatMap((region) =>
-    region.adjacentRegionIds.flatMap((adjacentRegionId) => {
-      if (region.id > adjacentRegionId) {
-        return [];
-      }
-
-      const adjacentRegion = regionsById.get(adjacentRegionId);
-      if (!adjacentRegion) {
-        return [];
-      }
-
-      const key = edgeKey(region.id, adjacentRegionId);
-      return [{
-        from: region,
-        to: adjacentRegion,
-        routeType: routeTypesByEdge.get(key) ?? "OperationalRoute"
-      }];
-    })
-  );
-}
-
-function edgeKey(firstRegionId: string, secondRegionId: string) {
-  return [firstRegionId, secondRegionId].sort().join("::");
+  return map.routes.flatMap((route) => {
+    const from = regionsById.get(route.fromRegionId);
+    const to = regionsById.get(route.toRegionId);
+    return from && to ? [{ from, to, routeType: route.routeType }] : [];
+  });
 }
 
 function resolveVisibleStackUnits(units: UnitState[], selectedUnitId: string | null) {

@@ -9,150 +9,150 @@
     {
       "id": "casablanca",
       "name": "Casablanca",
+      "kind": "EntryPoint",
       "position": { "x": 90, "y": 260 },
       "terrain": "Coast",
       "owner": "Allies",
       "victoryPoints": 3,
       "supplyValue": 2,
-      "features": ["Port", "City"],
-      "adjacentRegionIds": ["algiers"]
+      "features": ["Port", "City"]
     },
     {
       "id": "algiers",
       "name": "Algiers",
+      "kind": "Objective",
       "position": { "x": 250, "y": 220 },
       "terrain": "Coast",
       "owner": "Allies",
       "victoryPoints": 4,
       "supplyValue": 2,
-      "features": ["Port", "City"],
-      "adjacentRegionIds": ["casablanca", "tunis", "kasserine-pass"]
+      "features": ["Port", "City"]
     },
     {
       "id": "tunis",
       "name": "Tunis",
+      "kind": "PrimaryObjective",
       "position": { "x": 430, "y": 230 },
       "terrain": "Coast",
       "owner": "Axis",
       "victoryPoints": 6,
       "supplyValue": 2,
-      "features": ["Port", "City"],
-      "adjacentRegionIds": ["algiers", "kasserine-pass", "tripoli"]
+      "features": ["Port", "City"]
     },
     {
       "id": "kasserine-pass",
       "name": "Kasserine Pass",
+      "kind": "OperationalPosition",
       "position": { "x": 350, "y": 390 },
       "terrain": "Mountain",
       "owner": "Allies",
       "victoryPoints": 4,
       "supplyValue": 0,
-      "features": [],
-      "adjacentRegionIds": ["algiers", "tunis", "fezzan-desert"]
+      "features": []
     },
     {
       "id": "tripoli",
       "name": "Tripoli",
+      "kind": "Objective",
       "position": { "x": 555, "y": 335 },
       "terrain": "Coast",
       "owner": "Axis",
       "victoryPoints": 8,
       "supplyValue": 3,
-      "features": ["Port", "Airfield", "City"],
-      "adjacentRegionIds": ["tunis", "fezzan-desert", "benghazi"]
+      "features": ["Port", "Airfield", "City"]
     },
     {
       "id": "fezzan-desert",
       "name": "Fezzan Desert",
+      "kind": "OperationalPosition",
       "position": { "x": 530, "y": 480 },
       "terrain": "Desert",
       "owner": "Neutral",
       "victoryPoints": 1,
       "supplyValue": 0,
-      "features": [],
-      "adjacentRegionIds": ["kasserine-pass", "tripoli", "benghazi"]
+      "features": []
     },
     {
       "id": "benghazi",
       "name": "Benghazi",
+      "kind": "Objective",
       "position": { "x": 680, "y": 285 },
       "terrain": "Coast",
       "owner": "Axis",
       "victoryPoints": 6,
       "supplyValue": 2,
-      "features": ["Port", "City"],
-      "adjacentRegionIds": ["tripoli", "fezzan-desert", "gazala"]
+      "features": ["Port", "City"]
     },
     {
       "id": "gazala",
       "name": "Gazala",
+      "kind": "OperationalPosition",
       "position": { "x": 785, "y": 320 },
       "terrain": "Rough",
       "owner": "Axis",
       "victoryPoints": 4,
       "supplyValue": 0,
-      "features": ["Fortified"],
-      "adjacentRegionIds": ["benghazi", "tobruk"]
+      "features": ["Fortified"]
     },
     {
       "id": "tobruk",
       "name": "Tobruk",
+      "kind": "PrimaryObjective",
       "position": { "x": 890, "y": 290 },
       "terrain": "Coast",
       "owner": "Allies",
       "victoryPoints": 8,
       "supplyValue": 2,
-      "features": ["Port", "Fortified"],
-      "adjacentRegionIds": ["gazala", "el-alamein"]
+      "features": ["Port", "Fortified"]
     },
     {
       "id": "el-alamein",
       "name": "El Alamein",
+      "kind": "OperationalPosition",
       "position": { "x": 990, "y": 345 },
       "terrain": "Desert",
       "owner": "Allies",
       "victoryPoints": 7,
       "supplyValue": 1,
-      "features": ["Airfield"],
-      "adjacentRegionIds": ["tobruk", "alexandria"]
+      "features": ["Airfield"]
     },
     {
       "id": "alexandria",
       "name": "Alexandria",
+      "kind": "Objective",
       "position": { "x": 1090, "y": 300 },
       "terrain": "Coast",
       "owner": "Allies",
       "victoryPoints": 12,
       "supplyValue": 3,
-      "features": ["Port", "City"],
-      "adjacentRegionIds": ["el-alamein", "cairo"]
+      "features": ["Port", "City"]
     },
     {
       "id": "cairo",
       "name": "Cairo",
+      "kind": "PrimaryObjective",
       "position": { "x": 1090, "y": 430 },
       "terrain": "City",
       "owner": "Allies",
       "victoryPoints": 10,
       "supplyValue": 2,
-      "features": ["City", "SupplyDepot"],
-      "adjacentRegionIds": ["alexandria"]
+      "features": ["City", "SupplyDepot"]
     }
   ],
   "routes": [
-    { "fromRegionId": "casablanca", "toRegionId": "algiers", "routeType": "CoastalRoad" },
-    { "fromRegionId": "algiers", "toRegionId": "tunis", "routeType": "CoastalRoad" },
-    { "fromRegionId": "algiers", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute" },
-    { "fromRegionId": "tunis", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute" },
-    { "fromRegionId": "tunis", "toRegionId": "tripoli", "routeType": "CoastalRoad" },
-    { "fromRegionId": "kasserine-pass", "toRegionId": "fezzan-desert", "routeType": "DesertTrack" },
-    { "fromRegionId": "tripoli", "toRegionId": "fezzan-desert", "routeType": "DesertTrack" },
-    { "fromRegionId": "tripoli", "toRegionId": "benghazi", "routeType": "CoastalRoad" },
-    { "fromRegionId": "fezzan-desert", "toRegionId": "benghazi", "routeType": "DesertTrack" },
-    { "fromRegionId": "benghazi", "toRegionId": "gazala", "routeType": "DesertTrack" },
-    { "fromRegionId": "gazala", "toRegionId": "tobruk", "routeType": "CoastalRoad" },
-    { "fromRegionId": "tobruk", "toRegionId": "el-alamein", "routeType": "CoastalRoad" },
-    { "fromRegionId": "el-alamein", "toRegionId": "alexandria", "routeType": "CoastalRoad" },
-    { "fromRegionId": "alexandria", "toRegionId": "cairo", "routeType": "Railroad" }
+    { "id": "casablanca-algiers", "fromRegionId": "casablanca", "toRegionId": "algiers", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "algiers-tunis", "fromRegionId": "algiers", "toRegionId": "tunis", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "algiers-kasserine", "fromRegionId": "algiers", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "tunis-kasserine", "fromRegionId": "tunis", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "tunis-tripoli", "fromRegionId": "tunis", "toRegionId": "tripoli", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "kasserine-fezzan", "fromRegionId": "kasserine-pass", "toRegionId": "fezzan-desert", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
+    { "id": "tripoli-fezzan", "fromRegionId": "tripoli", "toRegionId": "fezzan-desert", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
+    { "id": "tripoli-benghazi", "fromRegionId": "tripoli", "toRegionId": "benghazi", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "fezzan-benghazi", "fromRegionId": "fezzan-desert", "toRegionId": "benghazi", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
+    { "id": "benghazi-gazala", "fromRegionId": "benghazi", "toRegionId": "gazala", "routeType": "DesertTrack", "movementCost": 1, "supplyCost": 1 },
+    { "id": "gazala-tobruk", "fromRegionId": "gazala", "toRegionId": "tobruk", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "tobruk-el-alamein", "fromRegionId": "tobruk", "toRegionId": "el-alamein", "routeType": "CoastalRoad", "movementCost": 2, "supplyCost": 1 },
+    { "id": "el-alamein-alexandria", "fromRegionId": "el-alamein", "toRegionId": "alexandria", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "alexandria-cairo", "fromRegionId": "alexandria", "toRegionId": "cairo", "routeType": "Railroad", "movementCost": 1, "supplyCost": 0 }
   ]
 }

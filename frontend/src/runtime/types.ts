@@ -1,7 +1,8 @@
 export type Side = "Axis" | "Allies" | "Neutral";
 export type UnitType = "Infantry" | "Armour" | "Logistics" | "AirWing";
 export type UnitStatus = "Ready" | "Disrupted" | "Destroyed";
-export type OrderType = "Move" | "Attack" | "HoldPosition" | "Support" | "Resupply" | "Recon";
+export type OrderType = "Move" | "Attack" | "HoldPosition" | "Support" | "Resupply" | "Recon" | "Deploy";
+export type RegionKind = "PrimaryObjective" | "Objective" | "OperationalPosition" | "EntryPoint";
 
 export interface Coordinate {
   x: number;
@@ -16,19 +17,22 @@ export interface CoordinateSystem {
 export interface RegionDefinition {
   id: string;
   name: string;
+  kind: RegionKind;
   position: Coordinate;
   terrain: string;
   owner: Side;
   victoryPoints: number;
   supplyValue: number;
   features: string[];
-  adjacentRegionIds: string[];
 }
 
 export interface RouteDefinition {
+  id: string;
   fromRegionId: string;
   toRegionId: string;
   routeType: string;
+  movementCost: number;
+  supplyCost: number;
 }
 
 export interface MapDefinition {
@@ -107,13 +111,30 @@ export interface ScenarioDefinition {
   startDate: string;
   maxTurns: number;
   defaultSide: Side;
-  startingResources: Resources;
-  victoryConditions: Array<{
-    type: string;
-    regionId: string;
-    requiredOwner: Side;
+  startingResources: Record<"Axis" | "Allies", Resources>;
+  commandCosts: Record<OrderType, {
+    baseCommandPoints: number;
+    fixedSupplies: number;
+    fixedFuel: number;
+    suppliesPerMovementCost: number;
+    fuelPerMovementCost: number;
   }>;
+  victoryRules: {
+    outcomes: Array<{
+      id: string;
+      result: "Victory" | "Defeat" | "Draw";
+      priority: number;
+      allOf: Array<{
+        type: string;
+        side?: "Player" | "Enemy" | "Axis" | "Allies" | null;
+        regionId?: string | null;
+        turnNumber?: number | null;
+      }>;
+    }>;
+  };
   startingUnitIds: string[];
+  reserveIds: string[];
+  deploymentLimitPerSidePerTurn: number;
 }
 
 export interface UnitDefinition {
@@ -231,8 +252,9 @@ export interface GameState {
   campaignDate: string;
   playerSide: Side;
   enemySide: Side;
-  resources: Resources;
+  resources: Record<"Axis" | "Allies", Resources>;
   regions: RegionState[];
+  routes: RouteDefinition[];
   units: UnitState[];
   isComplete: boolean;
   result: string | null;
@@ -252,9 +274,21 @@ export interface CampaignStateResponse {
   snapshotUid: string;
   turnNumber: number;
   campaignDate: string;
-  resources: Resources;
+  resources: Record<"Axis" | "Allies", Resources>;
   regions: RegionState[];
+  routes: RouteDefinition[];
   units: UnitState[];
+  reserves: Array<{
+    reserveId: string;
+    unitId: string;
+    side: Side;
+    status: "Unavailable" | "Available" | "Deployed" | "Removed";
+    availableTurn: number;
+    deploymentTurn: number | null;
+    deployedUnitId: string | null;
+  }>;
+  victoryProgress: Record<string, number>;
+  scenarioEventHistory: string[];
   activeTensions: StrategicTensionCard[];
   tensionHistory: TensionDecision[];
   campaignModifiers: GameState["campaignModifiers"];
@@ -287,11 +321,15 @@ export interface CampaignTurnSummary {
   resolvedAt: string | null;
 }
 
+export type SubmitCommandPayload =
+  | { commandType: "Move" | "Attack"; unitId: string; fromRegionId: string; pathRegionIds: string[] }
+  | { commandType: "Support" | "Recon"; unitId: string; fromRegionId: string; targetRegionId: string }
+  | { commandType: "HoldPosition" | "Resupply"; unitId: string; regionId: string }
+  | { commandType: "Deploy"; reserveId: string; targetRegionId: string };
+
 export interface SubmitCommand {
-  commandType: OrderType;
-  unitId: string;
-  regionId?: string | null;
-  targetRegionId?: string | null;
+  sequence: number;
+  command: SubmitCommandPayload;
 }
 
 export interface GameClient {

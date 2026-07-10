@@ -16,7 +16,6 @@ public static class CommandValidator
             ThrowIfInvalid(errors);
             return;
         }
-
         if (request.Commands.Count == 0)
         {
             AddError(errors, "commands", "At least one command is required.");
@@ -26,201 +25,225 @@ public static class CommandValidator
 
         var units = state.Units.ToDictionary(unit => unit.Id, StringComparer.Ordinal);
         var regions = state.Regions.ToDictionary(region => region.Id, StringComparer.Ordinal);
+        var reserves = state.Reserves.ToDictionary(reserve => reserve.ReserveId, StringComparer.Ordinal);
+        var sequences = new HashSet<int>();
         var commandedUnitIds = new HashSet<string>(StringComparer.Ordinal);
+        var commandedReserveIds = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < request.Commands.Count; index++)
         {
-            var command = request.Commands[index];
+            var requestCommand = request.Commands[index];
             var prefix = $"commands[{index}]";
-            if (command is null)
+            if (requestCommand is null)
             {
                 AddError(errors, prefix, "Command is required.");
                 continue;
             }
-
-            if (!Enum.IsDefined(command.CommandType))
+            if (requestCommand.Sequence <= 0)
             {
-                AddError(errors, $"{prefix}.commandType", $"Command type '{command.CommandType}' is not supported.");
+                AddError(errors, $"{prefix}.sequence", "Sequence must be positive.");
+            }
+            else if (!sequences.Add(requestCommand.Sequence))
+            {
+                AddError(errors, $"{prefix}.sequence", $"Sequence '{requestCommand.Sequence}' is duplicated.");
+            }
+            if (requestCommand.Command is null)
+            {
+                AddError(errors, $"{prefix}.command", "A typed command payload is required.");
+                continue;
+            }
+
+            var payload = requestCommand.Command;
+            if (payload is DeployCommandPayload deploy)
+            {
+                ValidateDeploy(errors, prefix, deploy, playerSide, reserves, regions, commandedReserveIds);
+                continue;
             }
 
             UnitState? unit = null;
-            if (string.IsNullOrWhiteSpace(command.UnitId))
+            if (string.IsNullOrWhiteSpace(payload.UnitId))
             {
-                AddError(errors, $"{prefix}.unitId", "Unit is required.");
+                AddError(errors, $"{prefix}.command.unitId", "Unit is required.");
             }
-            else if (!units.TryGetValue(command.UnitId, out unit))
+            else if (!units.TryGetValue(payload.UnitId, out unit))
             {
-                AddError(errors, $"{prefix}.unitId", $"Unit '{command.UnitId}' does not exist in the latest campaign state.");
+                AddError(errors, $"{prefix}.command.unitId", $"Unit '{payload.UnitId}' does not exist in the latest campaign state.");
             }
             else
             {
                 if (!commandedUnitIds.Add(unit.Id))
                 {
-                    AddError(errors, $"{prefix}.unitId", $"Unit '{unit.Id}' already has a command in this submission.");
+                    AddError(errors, $"{prefix}.command.unitId", $"Unit '{unit.Id}' already has a command in this submission.");
                 }
-
                 if (unit.Side != playerSide)
                 {
-                    AddError(errors, $"{prefix}.unitId", $"Unit '{unit.Id}' does not belong to side '{playerSide}'.");
+                    AddError(errors, $"{prefix}.command.unitId", $"Unit '{unit.Id}' does not belong to side '{playerSide}'.");
                 }
-
                 if (unit.Status == UnitStatus.Destroyed || unit.Strength <= 0)
                 {
-                    AddError(errors, $"{prefix}.unitId", $"Unit '{unit.Id}' has been destroyed.");
+                    AddError(errors, $"{prefix}.command.unitId", $"Unit '{unit.Id}' has been destroyed.");
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(command.RegionId))
+            switch (payload)
             {
-                if (!regions.ContainsKey(command.RegionId))
-                {
-                    AddError(errors, $"{prefix}.regionId", $"Region '{command.RegionId}' does not exist in the latest campaign state.");
-                }
-                else if (unit is not null && !string.Equals(command.RegionId, unit.RegionId, StringComparison.Ordinal))
-                {
-                    AddError(errors, $"{prefix}.regionId", $"Region '{command.RegionId}' is not the current region for unit '{unit.Id}'.");
-                }
+                case MoveCommandPayload move:
+                    ValidatePath(errors, prefix, move.FromRegionId, move.PathRegionIds, unit, state, regions, isMove: true);
+                    break;
+                case AttackCommandPayload attack:
+                    ValidatePath(errors, prefix, attack.FromRegionId, attack.PathRegionIds, unit, state, regions, isMove: false);
+                    break;
+                case SupportCommandPayload support:
+                    ValidateNearbyTarget(errors, prefix, support.FromRegionId, support.TargetRegionIdValue, unit, regions);
+                    break;
+                case ReconCommandPayload recon:
+                    ValidateNearbyTarget(errors, prefix, recon.FromRegionId, recon.TargetRegionIdValue, unit, regions);
+                    break;
+                case HoldPositionCommandPayload hold:
+                    ValidateCurrentRegion(errors, prefix, hold.RegionIdValue, unit, regions);
+                    break;
+                case ResupplyCommandPayload resupply:
+                    ValidateCurrentRegion(errors, prefix, resupply.RegionIdValue, unit, regions);
+                    break;
+                default:
+                    AddError(errors, $"{prefix}.command.commandType", $"Command payload '{payload.GetType().Name}' is not supported.");
+                    break;
             }
-
-            if (!string.IsNullOrWhiteSpace(command.TargetRegionId)
-                && !regions.ContainsKey(command.TargetRegionId))
-            {
-                AddError(errors, $"{prefix}.targetRegionId", $"Target region '{command.TargetRegionId}' does not exist in the latest campaign state.");
-            }
-
-            ValidateCommandTypeRules(errors, prefix, command, unit, state, regions);
         }
 
         ThrowIfInvalid(errors);
     }
 
-    private static void ValidateCommandTypeRules(
+    private static void ValidatePath(
         Dictionary<string, List<string>> errors,
         string prefix,
-        SubmitCommandRequest command,
+        string fromRegionId,
+        IReadOnlyList<string> path,
         UnitState? unit,
         GameState state,
-        IReadOnlyDictionary<string, RegionState> regions)
+        IReadOnlyDictionary<string, RegionState> regions,
+        bool isMove)
     {
-        switch (command.CommandType)
+        ValidateCurrentRegion(errors, prefix, fromRegionId, unit, regions);
+        if (path is not { Count: > 0 })
         {
-            case OrderType.Move:
-                ValidateMoveOrAttackTarget(errors, prefix, command, unit, regions);
-                ValidateMoveDestination(errors, prefix, command, unit, state);
-                break;
+            AddError(errors, $"{prefix}.command.pathRegionIds", "Move and Attack commands require a non-empty ordered path.");
+            return;
+        }
 
-            case OrderType.Attack:
-                ValidateMoveOrAttackTarget(errors, prefix, command, unit, regions);
-                break;
+        var current = fromRegionId;
+        var movementCost = 0;
+        for (var index = 0; index < path.Count; index++)
+        {
+            var next = path[index];
+            if (!regions.ContainsKey(next))
+            {
+                AddError(errors, $"{prefix}.command.pathRegionIds[{index}]", $"Region '{next}' does not exist in the latest campaign state.");
+                current = next;
+                continue;
+            }
+            var route = state.Routes.FirstOrDefault(candidate => Connects(candidate, current, next));
+            if (route is null)
+            {
+                AddError(errors, $"{prefix}.command.pathRegionIds[{index}]", $"No route connects '{current}' to '{next}'.");
+            }
+            else
+            {
+                movementCost += route.MovementCost;
+            }
+            current = next;
+        }
 
-            case OrderType.Recon:
-            case OrderType.Support:
-                ValidateOptionalNearbyTarget(errors, prefix, command, unit, regions);
-                break;
+        if (unit is not null && movementCost > unit.Movement)
+        {
+            AddError(errors, $"{prefix}.command.pathRegionIds", $"Path movement cost {movementCost} exceeds unit '{unit.Id}' allowance {unit.Movement}.");
+        }
 
-            case OrderType.HoldPosition:
-            case OrderType.Resupply:
-                ValidateNoTarget(errors, prefix, command);
-                break;
+        if (isMove && unit is not null)
+        {
+            var destination = path[^1];
+            var occupiedByEnemy = state.Units.Any(other =>
+                other.Side != unit.Side && other.Side != Side.Neutral && other.Status != UnitStatus.Destroyed && other.RegionId == destination);
+            if (occupiedByEnemy)
+            {
+                AddError(errors, $"{prefix}.command.pathRegionIds", $"Destination '{destination}' is occupied by enemy forces. Use Attack instead.");
+            }
         }
     }
 
-    private static void ValidateMoveOrAttackTarget(
+    private static void ValidateNearbyTarget(
         Dictionary<string, List<string>> errors,
         string prefix,
-        SubmitCommandRequest command,
+        string fromRegionId,
+        string targetRegionId,
         UnitState? unit,
         IReadOnlyDictionary<string, RegionState> regions)
     {
-        if (string.IsNullOrWhiteSpace(command.TargetRegionId))
+        ValidateCurrentRegion(errors, prefix, fromRegionId, unit, regions);
+        if (!regions.TryGetValue(targetRegionId, out var target))
         {
-            AddError(errors, $"{prefix}.targetRegionId", $"{command.CommandType} commands require a target region.");
+            AddError(errors, $"{prefix}.command.targetRegionId", $"Region '{targetRegionId}' does not exist in the latest campaign state.");
             return;
         }
-
-        if (unit is null
-            || !regions.TryGetValue(unit.RegionId, out var currentRegion)
-            || !regions.TryGetValue(command.TargetRegionId, out var targetRegion))
+        if (unit is not null && target.Id != unit.RegionId && !regions[unit.RegionId].AdjacentRegionIds.Contains(target.Id, StringComparer.Ordinal))
         {
-            return;
-        }
-
-        if (!currentRegion.AdjacentRegionIds.Contains(targetRegion.Id, StringComparer.Ordinal))
-        {
-            AddError(
-                errors,
-                $"{prefix}.targetRegionId",
-                $"Target region '{targetRegion.Id}' is not adjacent to unit '{unit.Id}' in '{currentRegion.Id}'.");
+            AddError(errors, $"{prefix}.command.targetRegionId", $"Target region '{target.Id}' must be current or adjacent to '{unit.RegionId}'.");
         }
     }
 
-    private static void ValidateMoveDestination(
+    private static void ValidateCurrentRegion(
         Dictionary<string, List<string>> errors,
         string prefix,
-        SubmitCommandRequest command,
-        UnitState? unit,
-        GameState state)
-    {
-        if (unit is null || string.IsNullOrWhiteSpace(command.TargetRegionId))
-        {
-            return;
-        }
-
-        var occupiedByEnemy = state.Units.Any(other =>
-            other.Side != unit.Side
-            && other.Side != Side.Neutral
-            && other.Status != UnitStatus.Destroyed
-            && string.Equals(other.RegionId, command.TargetRegionId, StringComparison.Ordinal));
-
-        if (occupiedByEnemy)
-        {
-            AddError(
-                errors,
-                $"{prefix}.targetRegionId",
-                $"Target region '{command.TargetRegionId}' is occupied by enemy forces. Use Attack instead.");
-        }
-    }
-
-    private static void ValidateOptionalNearbyTarget(
-        Dictionary<string, List<string>> errors,
-        string prefix,
-        SubmitCommandRequest command,
+        string regionId,
         UnitState? unit,
         IReadOnlyDictionary<string, RegionState> regions)
     {
-        if (string.IsNullOrWhiteSpace(command.TargetRegionId)
-            || unit is null
-            || !regions.TryGetValue(unit.RegionId, out var currentRegion)
-            || !regions.TryGetValue(command.TargetRegionId, out var targetRegion))
+        if (!regions.ContainsKey(regionId))
         {
-            return;
+            AddError(errors, $"{prefix}.command.regionId", $"Region '{regionId}' does not exist in the latest campaign state.");
         }
-
-        if (!string.Equals(targetRegion.Id, currentRegion.Id, StringComparison.Ordinal)
-            && !currentRegion.AdjacentRegionIds.Contains(targetRegion.Id, StringComparer.Ordinal))
+        else if (unit is not null && unit.RegionId != regionId)
         {
-            AddError(
-                errors,
-                $"{prefix}.targetRegionId",
-                $"{command.CommandType} target region '{targetRegion.Id}' must be the unit's current region or adjacent to '{currentRegion.Id}'.");
+            AddError(errors, $"{prefix}.command.regionId", $"Region '{regionId}' is not the current region for unit '{unit.Id}'.");
         }
     }
 
-    private static void ValidateNoTarget(
+    private static void ValidateDeploy(
         Dictionary<string, List<string>> errors,
         string prefix,
-        SubmitCommandRequest command)
+        DeployCommandPayload deploy,
+        Side playerSide,
+        IReadOnlyDictionary<string, ReserveState> reserves,
+        IReadOnlyDictionary<string, RegionState> regions,
+        HashSet<string> commandedReserveIds)
     {
-        if (string.IsNullOrWhiteSpace(command.TargetRegionId))
+        if (!reserves.TryGetValue(deploy.ReserveId, out var reserve))
         {
-            return;
+            AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{deploy.ReserveId}' does not exist in the latest campaign state.");
         }
-
-        AddError(
-            errors,
-            $"{prefix}.targetRegionId",
-            $"{command.CommandType} commands do not accept a target region.");
+        else
+        {
+            if (!commandedReserveIds.Add(reserve.ReserveId))
+            {
+                AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{reserve.ReserveId}' already has a command in this submission.");
+            }
+            if (reserve.Side != playerSide)
+            {
+                AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{reserve.ReserveId}' does not belong to side '{playerSide}'.");
+            }
+            if (reserve.Status != ReserveStatus.Available)
+            {
+                AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{reserve.ReserveId}' is '{reserve.Status}', not Available.");
+            }
+        }
+        if (!regions.ContainsKey(deploy.TargetRegionIdValue))
+        {
+            AddError(errors, $"{prefix}.command.targetRegionId", $"Region '{deploy.TargetRegionIdValue}' does not exist in the latest campaign state.");
+        }
     }
+
+    private static bool Connects(RouteState route, string left, string right) =>
+        route.FromRegionId == left && route.ToRegionId == right || route.FromRegionId == right && route.ToRegionId == left;
 
     private static void AddError(Dictionary<string, List<string>> errors, string key, string message)
     {
@@ -229,7 +252,6 @@ public static class CommandValidator
             messages = [];
             errors[key] = messages;
         }
-
         messages.Add(message);
     }
 
@@ -239,13 +261,9 @@ public static class CommandValidator
         {
             return;
         }
-
         throw new ApiValidationException(
             "Invalid command submission",
             "One or more commands are invalid.",
-            errors.ToDictionary(
-                pair => pair.Key,
-                pair => pair.Value.ToArray(),
-                StringComparer.Ordinal));
+            errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal));
     }
 }

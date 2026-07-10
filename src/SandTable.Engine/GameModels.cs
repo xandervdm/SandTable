@@ -31,7 +31,8 @@ public enum OrderType
     Support,
     HoldPosition,
     Resupply,
-    Recon
+    Recon,
+    Deploy
 }
 
 public enum CommandSource
@@ -45,11 +46,59 @@ public enum GameEventType
 {
     Battle,
     Movement,
+    Deployment,
     Supply,
     Recon,
+    Tension,
     Victory,
     Scenario,
     System
+}
+
+public enum RegionKind
+{
+    PrimaryObjective,
+    Objective,
+    OperationalPosition,
+    EntryPoint
+}
+
+public enum VictoryResult
+{
+    Victory,
+    Defeat,
+    Draw
+}
+
+public enum VictoryConditionType
+{
+    ControlRegion,
+    ControlAtLeast,
+    SupplyConnected,
+    VictoryPointsAtLeast,
+    TurnNumberAtLeast
+}
+
+public enum VictorySideSelector
+{
+    Player,
+    Enemy,
+    Axis,
+    Allies
+}
+
+public enum ReserveStatus
+{
+    Unavailable,
+    Available,
+    Deployed,
+    Removed
+}
+
+public enum ScenarioEventPhase
+{
+    BeforeResolution,
+    AfterResolution
 }
 
 public enum GameEventScope
@@ -125,18 +174,21 @@ public sealed record CoordinateSystem(int Width, int Height);
 public sealed record RegionDefinition(
     string Id,
     string Name,
+    RegionKind Kind,
     Coordinate Position,
     string Terrain,
     Side Owner,
     int VictoryPoints,
     int SupplyValue,
-    IReadOnlyList<string> Features,
-    IReadOnlyList<string> AdjacentRegionIds);
+    IReadOnlyList<string> Features);
 
 public sealed record RouteDefinition(
+    string Id,
     string FromRegionId,
     string ToRegionId,
-    string RouteType);
+    string RouteType,
+    int MovementCost,
+    int SupplyCost);
 
 public sealed record ScenarioDefinition(
     string ScenarioId,
@@ -145,14 +197,39 @@ public sealed record ScenarioDefinition(
     DateOnly StartDate,
     int MaxTurns,
     Side DefaultSide,
-    Resources StartingResources,
-    IReadOnlyList<VictoryConditionDefinition> VictoryConditions,
-    IReadOnlyList<string> StartingUnitIds);
+    IReadOnlyDictionary<Side, Resources> StartingResources,
+    IReadOnlyDictionary<OrderType, CommandCostDefinition> CommandCosts,
+    VictoryRulesDefinition VictoryRules,
+    IReadOnlyList<string> StartingUnitIds,
+    IReadOnlyList<string> ReserveIds,
+    int DeploymentLimitPerSidePerTurn);
+
+public sealed record CommandCostDefinition(
+    int BaseCommandPoints,
+    int FixedSupplies,
+    int FixedFuel,
+    int SuppliesPerMovementCost,
+    int FuelPerMovementCost);
+
+public sealed record VictoryRulesDefinition(IReadOnlyList<VictoryOutcomeDefinition> Outcomes);
+
+public sealed record VictoryOutcomeDefinition(
+    string Id,
+    VictoryResult Result,
+    int Priority,
+    IReadOnlyList<VictoryConditionDefinition> AllOf);
 
 public sealed record VictoryConditionDefinition(
-    string Type,
-    string RegionId,
-    Side RequiredOwner);
+    VictoryConditionType Type,
+    VictorySideSelector? Side = null,
+    string? RegionId = null,
+    IReadOnlyList<string>? RegionIds = null,
+    int? RequiredCount = null,
+    IReadOnlyList<string>? SourceRegionIds = null,
+    IReadOnlyList<string>? DestinationRegionIds = null,
+    int? Threshold = null,
+    int? TurnNumber = null,
+    int ConsecutiveTurns = 1);
 
 public sealed record UnitCatalog(IReadOnlyList<UnitDefinition> Units);
 
@@ -197,15 +274,25 @@ public sealed record ScenarioEventCatalog(IReadOnlyList<ScenarioEventDefinition>
 public sealed record ScenarioEventDefinition(
     string Id,
     ScenarioEventTrigger Trigger,
-    ScenarioEventEffect Effect,
+    IReadOnlyList<ScenarioEventCondition> Conditions,
+    IReadOnlyList<ScenarioEventEffect> Effects,
     string Message);
 
-public sealed record ScenarioEventTrigger(int Turn);
+public sealed record ScenarioEventTrigger(int Turn, ScenarioEventPhase Phase);
+
+public sealed record ScenarioEventCondition(
+    string Type,
+    string? RegionId = null,
+    string? ReserveId = null,
+    VictorySideSelector? Side = null);
 
 public sealed record ScenarioEventEffect(
-    string Type,
-    string UnitId,
-    string RegionId);
+    string EffectType,
+    string Description,
+    string? ReserveId = null,
+    ReserveStatus? ReserveStatus = null,
+    string? UnitId = null,
+    string? RegionId = null);
 
 public sealed record GameState(
     string TheatreId,
@@ -216,12 +303,18 @@ public sealed record GameState(
     DateOnly CampaignDate,
     Side PlayerSide,
     Side EnemySide,
-    Resources Resources,
+    IReadOnlyDictionary<Side, Resources> Resources,
     IReadOnlyList<RegionState> Regions,
+    IReadOnlyList<RouteState> Routes,
     IReadOnlyList<UnitState> Units,
+    IReadOnlyList<ReserveState> Reserves,
+    IReadOnlyDictionary<OrderType, CommandCostDefinition> CommandCosts,
+    int DeploymentLimitPerSidePerTurn,
+    VictoryRulesDefinition VictoryRules,
+    IReadOnlyDictionary<string, int> VictoryProgress,
+    IReadOnlyList<string> ScenarioEventHistory,
     bool IsComplete,
-    string? Result,
-    string? VictoryRegionId,
+    VictoryResult? Result,
     IReadOnlyList<StrategicTensionCard>? ActiveTensions = null,
     IReadOnlyList<TensionDecision>? TensionHistory = null,
     IReadOnlyList<CampaignModifier>? CampaignModifiers = null)
@@ -234,12 +327,21 @@ public sealed record GameState(
 public sealed record RegionState(
     string Id,
     string Name,
+    RegionKind Kind,
     string Terrain,
     Side Owner,
     int VictoryPoints,
     int SupplyValue,
     IReadOnlyList<string> Features,
     IReadOnlyList<string> AdjacentRegionIds);
+
+public sealed record RouteState(
+    string Id,
+    string FromRegionId,
+    string ToRegionId,
+    string RouteType,
+    int MovementCost,
+    int SupplyCost);
 
 public sealed record UnitState(
     string Id,
@@ -256,6 +358,15 @@ public sealed record UnitState(
     int Morale,
     int Experience,
     UnitStatus Status);
+
+public sealed record ReserveState(
+    string ReserveId,
+    string UnitId,
+    Side Side,
+    ReserveStatus Status,
+    int AvailableTurn,
+    int? DeploymentTurn,
+    string? DeployedUnitId);
 
 public sealed record TensionCardCatalog(IReadOnlyList<TensionCardDefinition> Cards);
 
@@ -375,15 +486,155 @@ public sealed record SubmittedCommand(
     int Sequence,
     CommandSource Source,
     Side Side,
-    OrderType CommandType,
-    string? UnitId,
-    string? RegionId,
-    string? TargetRegionId);
+    CommandPayload Payload)
+{
+    [JsonIgnore]
+    public OrderType CommandType => Payload.CommandType;
+
+    [JsonIgnore]
+    public string? UnitId => Payload.UnitId;
+
+    [JsonIgnore]
+    public string? RegionId => Payload.RegionId;
+
+    [JsonIgnore]
+    public string? TargetRegionId => Payload.TargetRegionId;
+}
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "commandType")]
+[JsonDerivedType(typeof(MoveCommandPayload), "Move")]
+[JsonDerivedType(typeof(AttackCommandPayload), "Attack")]
+[JsonDerivedType(typeof(SupportCommandPayload), "Support")]
+[JsonDerivedType(typeof(HoldPositionCommandPayload), "HoldPosition")]
+[JsonDerivedType(typeof(ResupplyCommandPayload), "Resupply")]
+[JsonDerivedType(typeof(ReconCommandPayload), "Recon")]
+[JsonDerivedType(typeof(DeployCommandPayload), "Deploy")]
+public abstract record CommandPayload
+{
+    [JsonIgnore]
+    public abstract OrderType CommandType { get; }
+
+    [JsonIgnore]
+    public virtual string? UnitId => null;
+
+    [JsonIgnore]
+    public virtual string? RegionId => null;
+
+    [JsonIgnore]
+    public virtual string? TargetRegionId => null;
+}
+
+public sealed record MoveCommandPayload(
+    [property: JsonPropertyName("unitId")]
+    string UnitIdValue,
+    [property: JsonPropertyName("fromRegionId")]
+    string FromRegionId,
+    [property: JsonPropertyName("pathRegionIds")]
+    IReadOnlyList<string> PathRegionIds) : CommandPayload
+{
+    [JsonIgnore]
+    public override OrderType CommandType => OrderType.Move;
+    [JsonIgnore]
+    public override string? UnitId => UnitIdValue;
+    [JsonIgnore]
+    public override string? RegionId => FromRegionId;
+    [JsonIgnore]
+    public override string? TargetRegionId => PathRegionIds.LastOrDefault();
+}
+
+public sealed record AttackCommandPayload(
+    [property: JsonPropertyName("unitId")]
+    string UnitIdValue,
+    [property: JsonPropertyName("fromRegionId")]
+    string FromRegionId,
+    [property: JsonPropertyName("pathRegionIds")]
+    IReadOnlyList<string> PathRegionIds) : CommandPayload
+{
+    [JsonIgnore]
+    public override OrderType CommandType => OrderType.Attack;
+    [JsonIgnore]
+    public override string? UnitId => UnitIdValue;
+    [JsonIgnore]
+    public override string? RegionId => FromRegionId;
+    [JsonIgnore]
+    public override string? TargetRegionId => PathRegionIds.LastOrDefault();
+}
+
+public sealed record SupportCommandPayload(
+    [property: JsonPropertyName("unitId")]
+    string UnitIdValue,
+    [property: JsonPropertyName("fromRegionId")]
+    string FromRegionId,
+    [property: JsonPropertyName("targetRegionId")]
+    string TargetRegionIdValue) : CommandPayload
+{
+    [JsonIgnore]
+    public override OrderType CommandType => OrderType.Support;
+    [JsonIgnore]
+    public override string? UnitId => UnitIdValue;
+    [JsonIgnore]
+    public override string? RegionId => FromRegionId;
+    [JsonIgnore]
+    public override string? TargetRegionId => TargetRegionIdValue;
+}
+
+public sealed record HoldPositionCommandPayload(
+    [property: JsonPropertyName("unitId")] string UnitIdValue,
+    [property: JsonPropertyName("regionId")] string RegionIdValue) : CommandPayload
+{
+    [JsonIgnore]
+    public override OrderType CommandType => OrderType.HoldPosition;
+    [JsonIgnore]
+    public override string? UnitId => UnitIdValue;
+    [JsonIgnore]
+    public override string? RegionId => RegionIdValue;
+}
+
+public sealed record ResupplyCommandPayload(
+    [property: JsonPropertyName("unitId")] string UnitIdValue,
+    [property: JsonPropertyName("regionId")] string RegionIdValue) : CommandPayload
+{
+    [JsonIgnore]
+    public override OrderType CommandType => OrderType.Resupply;
+    [JsonIgnore]
+    public override string? UnitId => UnitIdValue;
+    [JsonIgnore]
+    public override string? RegionId => RegionIdValue;
+}
+
+public sealed record ReconCommandPayload(
+    [property: JsonPropertyName("unitId")]
+    string UnitIdValue,
+    [property: JsonPropertyName("fromRegionId")]
+    string FromRegionId,
+    [property: JsonPropertyName("targetRegionId")]
+    string TargetRegionIdValue) : CommandPayload
+{
+    [JsonIgnore]
+    public override OrderType CommandType => OrderType.Recon;
+    [JsonIgnore]
+    public override string? UnitId => UnitIdValue;
+    [JsonIgnore]
+    public override string? RegionId => FromRegionId;
+    [JsonIgnore]
+    public override string? TargetRegionId => TargetRegionIdValue;
+}
+
+public sealed record DeployCommandPayload(
+    [property: JsonPropertyName("reserveId")] string ReserveId,
+    [property: JsonPropertyName("targetRegionId")] string TargetRegionIdValue) : CommandPayload
+{
+    [JsonIgnore]
+    public override OrderType CommandType => OrderType.Deploy;
+    [JsonIgnore]
+    public override string? TargetRegionId => TargetRegionIdValue;
+}
 
 public sealed record ResolvedCommand(
     SubmittedCommand Command,
     bool Accepted,
-    string? RejectionReason);
+    string? RejectionReason,
+    Resources Cost);
 
 public sealed record GameEvent(
     int Sequence,

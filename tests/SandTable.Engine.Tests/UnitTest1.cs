@@ -14,13 +14,14 @@ public class NorthAfricaScenarioTests
         var content = await LoadContentAsync();
         var factory = new Engine.ScenarioFactory();
 
-        var state = factory.CreateInitialState(content.Map, content.Scenario, content.Units);
+        var state = factory.CreateInitialState(content.Map, content.Scenario, content.Units, content.Reserves, Engine.Side.Axis);
 
         Assert.Equal("north-africa", state.TheatreId);
         Assert.Equal("north-africa-1942", state.ScenarioId);
         Assert.Equal(1, state.TurnNumber);
         Assert.Equal(Engine.Side.Axis, state.PlayerSide);
-        Assert.Equal("cairo", state.VictoryRegionId);
+        Assert.Contains(state.VictoryRules.Outcomes, outcome => outcome.Result == Engine.VictoryResult.Victory);
+        Assert.Contains(state.Reserves, reserve => reserve.ReserveId == "allied-armoured-reserve");
         Assert.Contains(state.Regions, region => region.Id == "alexandria" && region.Owner == Engine.Side.Allies);
         Assert.Contains(state.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "tripoli");
     }
@@ -29,10 +30,14 @@ public class NorthAfricaScenarioTests
     public async Task Turn_resolution_uses_human_and_ai_commands_from_same_starting_state()
     {
         var content = await LoadContentAsync();
-        var startingState = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var startingState = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units, content.Reserves, Engine.Side.Axis);
         var humanCommands = new[]
         {
-            new Engine.SubmittedCommand(1, Engine.CommandSource.Human, Engine.Side.Axis, Engine.OrderType.Move, "15th-panzer", "tripoli", "benghazi")
+            new Engine.SubmittedCommand(
+                1,
+                Engine.CommandSource.Human,
+                Engine.Side.Axis,
+                new Engine.MoveCommandPayload("15th-panzer", "tripoli", ["benghazi"]))
         };
         var aiCommands = new Engine.BasicAiPlanner().Plan(startingState, Engine.Side.Allies);
 
@@ -43,6 +48,8 @@ public class NorthAfricaScenarioTests
         Assert.Contains(resolution.Events, gameEvent => gameEvent.EventType == Engine.GameEventType.Movement);
         Assert.Contains(resolution.NextState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "benghazi");
         Assert.Contains(startingState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "tripoli");
+        var resolvedHumanCommand = Assert.Single(resolution.Commands, command => command.Command.Source == Engine.CommandSource.Human);
+        Assert.Equal(new Engine.Resources(1, 0, 1, 0, 1), resolvedHumanCommand.Cost);
     }
 
     [Fact]
@@ -51,9 +58,9 @@ public class NorthAfricaScenarioTests
         var content = await LoadContentAsync();
         var factory = new Engine.ScenarioFactory();
 
-        var defaultState = factory.CreateInitialState(content.Map, content.Scenario, content.Units);
-        var seededState = factory.CreateInitialState(content.Map, content.Scenario, content.Units, randomSeed: 1942);
-        var repeatState = factory.CreateInitialState(content.Map, content.Scenario, content.Units, randomSeed: 1942);
+        var defaultState = factory.CreateInitialState(content.Map, content.Scenario, content.Units, content.Reserves, Engine.Side.Axis);
+        var seededState = factory.CreateInitialState(content.Map, content.Scenario, content.Units, content.Reserves, Engine.Side.Axis, randomSeed: 1942);
+        var repeatState = factory.CreateInitialState(content.Map, content.Scenario, content.Units, content.Reserves, Engine.Side.Axis, randomSeed: 1942);
 
         Assert.Equal(
             seededState.Units.Select(unit => (unit.Id, unit.RegionId)),
@@ -77,7 +84,7 @@ public class NorthAfricaScenarioTests
     public async Task Ai_moves_toward_distant_enemy_when_fronts_are_separated()
     {
         var content = await LoadContentAsync();
-        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units);
+        var state = new Engine.ScenarioFactory().CreateInitialState(content.Map, content.Scenario, content.Units, content.Reserves, Engine.Side.Axis);
         var separatedState = state with
         {
             Regions = state.Regions
@@ -104,13 +111,14 @@ public class NorthAfricaScenarioTests
             && command.TargetRegionId == "alexandria");
     }
 
-    private static async Task<(Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units)> LoadContentAsync()
+    private static async Task<(Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units, Engine.ReserveCatalog Reserves)> LoadContentAsync()
     {
         var theatrePath = Path.Combine(FindRepoRoot(), "content", "theatres", "north-africa");
         return (
             await ReadJsonAsync<Engine.MapDefinition>(Path.Combine(theatrePath, "map.json")),
             await ReadJsonAsync<Engine.ScenarioDefinition>(Path.Combine(theatrePath, "scenarios", "north-africa-1942.json")),
-            await ReadJsonAsync<Engine.UnitCatalog>(Path.Combine(theatrePath, "units.json")));
+            await ReadJsonAsync<Engine.UnitCatalog>(Path.Combine(theatrePath, "units.json")),
+            await ReadJsonAsync<Engine.ReserveCatalog>(Path.Combine(theatrePath, "reserves.json")));
     }
 
     private static async Task<T> ReadJsonAsync<T>(string path)

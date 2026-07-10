@@ -44,7 +44,7 @@ public sealed class TensionChoiceResolver(IGameEffectApplier? effectApplier = nu
 
         var choiceEvent = new GameEvent(
             startingEventSequence,
-            GameEventType.System,
+            GameEventType.Tension,
             GameEventScope.Campaign,
             command.Side,
             null,

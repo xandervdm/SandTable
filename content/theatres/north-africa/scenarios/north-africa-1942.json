@@ -6,19 +6,60 @@
   "maxTurns": 15,
   "defaultSide": "Axis",
   "startingResources": {
-    "supplies": 1200,
-    "manpower": 850,
-    "fuel": 430,
-    "industry": 210,
-    "commandPoints": 3
-  },
-  "victoryConditions": [
-    {
-      "type": "ControlRegion",
-      "regionId": "cairo",
-      "requiredOwner": "Axis"
+    "Axis": {
+      "supplies": 1200,
+      "manpower": 850,
+      "fuel": 430,
+      "industry": 210,
+      "commandPoints": 3
+    },
+    "Allies": {
+      "supplies": 1250,
+      "manpower": 900,
+      "fuel": 460,
+      "industry": 240,
+      "commandPoints": 3
     }
-  ],
+  },
+  "commandCosts": {
+    "Move": { "baseCommandPoints": 1, "fixedSupplies": 0, "fixedFuel": 0, "suppliesPerMovementCost": 1, "fuelPerMovementCost": 1 },
+    "Attack": { "baseCommandPoints": 1, "fixedSupplies": 2, "fixedFuel": 1, "suppliesPerMovementCost": 1, "fuelPerMovementCost": 1 },
+    "Support": { "baseCommandPoints": 1, "fixedSupplies": 1, "fixedFuel": 0, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 },
+    "HoldPosition": { "baseCommandPoints": 0, "fixedSupplies": 0, "fixedFuel": 0, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 },
+    "Resupply": { "baseCommandPoints": 1, "fixedSupplies": 2, "fixedFuel": 0, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 },
+    "Recon": { "baseCommandPoints": 1, "fixedSupplies": 0, "fixedFuel": 1, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 },
+    "Deploy": { "baseCommandPoints": 1, "fixedSupplies": 0, "fixedFuel": 0, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 }
+  },
+  "victoryRules": {
+    "outcomes": [
+      {
+        "id": "player-controls-theatre-anchors",
+        "result": "Victory",
+        "priority": 1,
+        "allOf": [
+          { "type": "ControlRegion", "side": "Player", "regionId": "tunis" },
+          { "type": "ControlRegion", "side": "Player", "regionId": "cairo" }
+        ]
+      },
+      {
+        "id": "enemy-controls-theatre-anchors",
+        "result": "Defeat",
+        "priority": 2,
+        "allOf": [
+          { "type": "ControlRegion", "side": "Enemy", "regionId": "tunis" },
+          { "type": "ControlRegion", "side": "Enemy", "regionId": "cairo" }
+        ]
+      },
+      {
+        "id": "turn-limit",
+        "result": "Draw",
+        "priority": 100,
+        "allOf": [
+          { "type": "TurnNumberAtLeast", "turnNumber": 15 }
+        ]
+      }
+    ]
+  },
   "startingUnitIds": [
     "15th-panzer",
     "21st-panzer",
@@ -26,5 +67,7 @@
     "7th-armoured",
     "tobruk-garrison",
     "desert-air-wing"
-  ]
+  ],
+  "reserveIds": ["allied-armoured-reserve"],
+  "deploymentLimitPerSidePerTurn": 1
 }

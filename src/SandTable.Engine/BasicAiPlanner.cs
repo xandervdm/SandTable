@@ -28,7 +28,11 @@ public sealed class BasicAiPlanner
 
             if (adjacentEnemyUnit is not null)
             {
-                commands.Add(new SubmittedCommand(commands.Count + 1, CommandSource.AI, aiSide, OrderType.Attack, unit.Id, unit.RegionId, adjacentEnemyUnit.RegionId));
+                commands.Add(new SubmittedCommand(
+                    commands.Count + 1,
+                    CommandSource.AI,
+                    aiSide,
+                    new AttackCommandPayload(unit.Id, unit.RegionId, [adjacentEnemyUnit.RegionId])));
                 continue;
             }
 
@@ -40,14 +44,26 @@ public sealed class BasicAiPlanner
 
             if (adjacentEnemyRegion is not null)
             {
-                commands.Add(new SubmittedCommand(commands.Count + 1, CommandSource.AI, aiSide, OrderType.Move, unit.Id, unit.RegionId, adjacentEnemyRegion.Id));
+                commands.Add(new SubmittedCommand(
+                    commands.Count + 1,
+                    CommandSource.AI,
+                    aiSide,
+                    new MoveCommandPayload(unit.Id, unit.RegionId, [adjacentEnemyRegion.Id])));
                 continue;
             }
 
             var nextRegionId = FindNextStepTowardEnemy(currentRegion, regions, activeUnits, aiSide);
             commands.Add(nextRegionId is null
-                ? new SubmittedCommand(commands.Count + 1, CommandSource.AI, aiSide, OrderType.HoldPosition, unit.Id, unit.RegionId, null)
-                : new SubmittedCommand(commands.Count + 1, CommandSource.AI, aiSide, OrderType.Move, unit.Id, unit.RegionId, nextRegionId));
+                ? new SubmittedCommand(
+                    commands.Count + 1,
+                    CommandSource.AI,
+                    aiSide,
+                    new HoldPositionCommandPayload(unit.Id, unit.RegionId))
+                : new SubmittedCommand(
+                    commands.Count + 1,
+                    CommandSource.AI,
+                    aiSide,
+                    new MoveCommandPayload(unit.Id, unit.RegionId, [nextRegionId])));
         }
 
         return commands;

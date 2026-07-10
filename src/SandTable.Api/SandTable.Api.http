@@ -75,9 +75,13 @@ Content-Type: application/json
 {
   "commands": [
     {
-      "commandType": "Move",
-      "unitId": "15th-panzer",
-      "targetRegionId": "benghazi"
+      "sequence": 1,
+      "command": {
+        "commandType": "Move",
+        "unitId": "15th-panzer",
+        "fromRegionId": "tripoli",
+        "pathRegionIds": ["benghazi"]
+      }
     }
   ]
 }

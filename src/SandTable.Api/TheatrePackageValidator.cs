@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using SandTable.Engine;
 
 namespace SandTable.Api;
@@ -80,10 +81,10 @@ internal static class TheatrePackageValidator
         ValidateAssets(package.TheatrePath, package.Manifest, package.Assets);
         ValidateDisplay(package.Manifest, package.Map, package.Display, package.Assets);
         ValidateUnits(package.Manifest, package.Map, package.Units);
-        ValidateScenarios(package.Manifest, package.Map, package.Units, package.Scenarios);
+        ValidateScenarios(package.Manifest, package.Map, package.Units, package.Reserves, package.Scenarios);
         ValidateReserves(package.Manifest, package.Map, package.Units, package.Reserves);
         ValidateDoctrines(package.Manifest, package.Doctrines);
-        ValidateEvents(package.Manifest, package.Map, package.Units, package.Events);
+        ValidateEvents(package.Manifest, package.Map, package.Units, package.Reserves, package.Events);
         ValidateTensionCards(package.Manifest, package.TensionCards);
     }
 
@@ -115,47 +116,26 @@ internal static class TheatrePackageValidator
             Require(region.VictoryPoints >= 0, file, $"{field}.victoryPoints", "must not be negative.");
             Require(region.SupplyValue >= 0, file, $"{field}.supplyValue", "must not be negative.");
             Require(region.Features is not null, file, $"{field}.features", "is required.");
-            Require(region.AdjacentRegionIds is not null, file, $"{field}.adjacentRegionIds", "is required.");
-        }
-
-        var adjacencyEdges = new HashSet<string>(StringComparer.Ordinal);
-        for (var regionIndex = 0; regionIndex < map.Regions.Count; regionIndex++)
-        {
-            var region = map.Regions[regionIndex];
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            for (var adjacentIndex = 0; adjacentIndex < region.AdjacentRegionIds.Count; adjacentIndex++)
-            {
-                var adjacentId = region.AdjacentRegionIds[adjacentIndex];
-                var field = $"regions[{regionIndex}].adjacentRegionIds[{adjacentIndex}]";
-                Require(seen.Add(adjacentId), file, field, $"duplicates region '{adjacentId}'.");
-                Require(adjacentId != region.Id, file, field, "must not reference the same region.");
-                Require(regions.TryGetValue(adjacentId, out var adjacent), file, field,
-                    $"references missing region '{adjacentId}'.");
-                Require(adjacent!.AdjacentRegionIds.Contains(region.Id, StringComparer.Ordinal), file, field,
-                    $"is not symmetric; region '{adjacentId}' does not reference '{region.Id}'.");
-                adjacencyEdges.Add(EdgeKey(region.Id, adjacentId));
-            }
         }
 
         var routeEdges = new HashSet<string>(StringComparer.Ordinal);
+        var routeIds = new HashSet<string>(StringComparer.Ordinal);
         for (var index = 0; index < map.Routes.Count; index++)
         {
             var route = map.Routes[index];
             var field = $"routes[{index}]";
+            Require(!string.IsNullOrWhiteSpace(route.Id), file, $"{field}.id", "is required.");
+            Require(routeIds.Add(route.Id), file, $"{field}.id", $"duplicates route '{route.Id}'.");
             Require(regions.ContainsKey(route.FromRegionId), file, $"{field}.fromRegionId",
                 $"references missing region '{route.FromRegionId}'.");
             Require(regions.ContainsKey(route.ToRegionId), file, $"{field}.toRegionId",
                 $"references missing region '{route.ToRegionId}'.");
             Require(route.FromRegionId != route.ToRegionId, file, field, "must connect two different regions.");
             Require(!string.IsNullOrWhiteSpace(route.RouteType), file, $"{field}.routeType", "is required.");
+            Require(route.MovementCost > 0, file, $"{field}.movementCost", "must be positive.");
+            Require(route.SupplyCost >= 0, file, $"{field}.supplyCost", "must not be negative.");
             var edge = EdgeKey(route.FromRegionId, route.ToRegionId);
             Require(routeEdges.Add(edge), file, field, $"duplicates route '{edge}'.");
-            Require(adjacencyEdges.Contains(edge), file, field, "is not declared by region adjacency.");
-        }
-
-        foreach (var edge in adjacencyEdges)
-        {
-            Require(routeEdges.Contains(edge), file, "routes", $"is missing adjacency route '{edge}'.");
         }
     }
 
@@ -266,10 +246,12 @@ internal static class TheatrePackageValidator
         TheatreManifest manifest,
         MapDefinition map,
         UnitCatalog units,
+        ReserveCatalog reserves,
         IReadOnlyDictionary<string, ScenarioDefinition> scenarios)
     {
         var regionIds = map.Regions.Select(region => region.Id).ToHashSet(StringComparer.Ordinal);
         var unitIds = units.Units.Select(unit => unit.Id).ToHashSet(StringComparer.Ordinal);
+        var reserveIds = reserves.Reserves.Select(reserve => reserve.ReserveId).ToHashSet(StringComparer.Ordinal);
         foreach (var reference in manifest.Scenarios)
         {
             Require(scenarios.TryGetValue(reference.ScenarioId, out var scenario), reference.File, "scenarioId",
@@ -280,7 +262,20 @@ internal static class TheatrePackageValidator
             Require(!string.IsNullOrWhiteSpace(scenario.Name), reference.File, "name", "is required.");
             Require(scenario.MaxTurns > 0, reference.File, "maxTurns", "must be positive.");
             Require(scenario.DefaultSide is Side.Axis or Side.Allies, reference.File, "defaultSide", "must be Axis or Allies.");
-            ValidateResources(reference.File, "startingResources", scenario.StartingResources);
+            Require(scenario.StartingResources is not null, reference.File, "startingResources", "is required.");
+            foreach (var side in new[] { Side.Axis, Side.Allies })
+            {
+                Require(scenario.StartingResources.TryGetValue(side, out var resources), reference.File,
+                    $"startingResources.{side}", "is required.");
+                ValidateResources(reference.File, $"startingResources.{side}", resources!);
+            }
+            Require(scenario.CommandCosts is not null, reference.File, "commandCosts", "is required.");
+            foreach (var commandType in Enum.GetValues<OrderType>())
+            {
+                Require(scenario.CommandCosts.TryGetValue(commandType, out var cost), reference.File,
+                    $"commandCosts.{commandType}", "is required.");
+                ValidateCommandCost(reference.File, $"commandCosts.{commandType}", cost!);
+            }
             Require(scenario.StartingUnitIds is { Count: > 0 }, reference.File, "startingUnitIds", "must contain at least one unit.");
             var startingIds = new HashSet<string>(StringComparer.Ordinal);
             for (var index = 0; index < scenario.StartingUnitIds.Count; index++)
@@ -290,17 +285,15 @@ internal static class TheatrePackageValidator
                 Require(unitIds.Contains(unitId), reference.File, $"startingUnitIds[{index}]", $"references missing unit '{unitId}'.");
             }
 
-            Require(scenario.VictoryConditions is { Count: > 0 }, reference.File, "victoryConditions", "must contain at least one condition.");
-            for (var index = 0; index < scenario.VictoryConditions.Count; index++)
+            Require(scenario.ReserveIds is not null, reference.File, "reserveIds", "is required.");
+            for (var index = 0; index < scenario.ReserveIds.Count; index++)
             {
-                var condition = scenario.VictoryConditions[index];
-                Require(condition.Type == "ControlRegion", reference.File, $"victoryConditions[{index}].type",
-                    $"uses unsupported type '{condition.Type}'.");
-                Require(regionIds.Contains(condition.RegionId), reference.File, $"victoryConditions[{index}].regionId",
-                    $"references missing region '{condition.RegionId}'.");
-                Require(condition.RequiredOwner is Side.Axis or Side.Allies, reference.File,
-                    $"victoryConditions[{index}].requiredOwner", "must be Axis or Allies.");
+                Require(reserveIds.Contains(scenario.ReserveIds[index]), reference.File, $"reserveIds[{index}]",
+                    $"references missing reserve '{scenario.ReserveIds[index]}'.");
             }
+            Require(scenario.DeploymentLimitPerSidePerTurn > 0, reference.File,
+                "deploymentLimitPerSidePerTurn", "must be positive.");
+            ValidateVictoryRules(reference.File, scenario.VictoryRules, regionIds);
         }
     }
 
@@ -371,12 +364,14 @@ internal static class TheatrePackageValidator
         TheatreManifest manifest,
         MapDefinition map,
         UnitCatalog units,
+        ReserveCatalog reserves,
         ScenarioEventCatalog catalog)
     {
         var file = manifest.Files.Events;
         Require(catalog.Events is not null, file, "events", "is required.");
         var regionIds = map.Regions.Select(region => region.Id).ToHashSet(StringComparer.Ordinal);
         var unitIds = units.Units.Select(unit => unit.Id).ToHashSet(StringComparer.Ordinal);
+        var reserveIds = reserves.Reserves.Select(reserve => reserve.ReserveId).ToHashSet(StringComparer.Ordinal);
         var ids = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < catalog.Events.Count; index++)
@@ -386,13 +381,28 @@ internal static class TheatrePackageValidator
             Require(!string.IsNullOrWhiteSpace(definition.Id), file, $"{field}.id", "is required.");
             Require(ids.Add(definition.Id), file, $"{field}.id", $"duplicates event '{definition.Id}'.");
             Require(definition.Trigger is not null && definition.Trigger.Turn > 0, file, $"{field}.trigger.turn", "must be positive.");
-            Require(definition.Effect is not null, file, $"{field}.effect", "is required.");
-            Require(definition.Effect.Type == "AddUnit", file, $"{field}.effect.type",
-                $"uses unsupported type '{definition.Effect.Type}'.");
-            Require(unitIds.Contains(definition.Effect.UnitId), file, $"{field}.effect.unitId",
-                $"references missing unit '{definition.Effect.UnitId}'.");
-            Require(regionIds.Contains(definition.Effect.RegionId), file, $"{field}.effect.regionId",
-                $"references missing region '{definition.Effect.RegionId}'.");
+            Require(definition.Conditions is not null, file, $"{field}.conditions", "is required.");
+            Require(definition.Effects is { Count: > 0 }, file, $"{field}.effects", "must contain at least one effect.");
+            for (var effectIndex = 0; effectIndex < definition.Effects.Count; effectIndex++)
+            {
+                var effect = definition.Effects[effectIndex];
+                var effectField = $"{field}.effects[{effectIndex}]";
+                Require(effect.EffectType == "setReserveStatus", file, $"{effectField}.effectType",
+                    $"uses unsupported effect '{effect.EffectType}'.");
+                Require(effect.ReserveId is not null && reserveIds.Contains(effect.ReserveId), file, $"{effectField}.reserveId",
+                    $"references missing reserve '{effect.ReserveId}'.");
+                Require(effect.ReserveStatus.HasValue, file, $"{effectField}.reserveStatus", "is required.");
+                if (effect.UnitId is not null)
+                {
+                    Require(unitIds.Contains(effect.UnitId), file, $"{effectField}.unitId",
+                        $"references missing unit '{effect.UnitId}'.");
+                }
+                if (effect.RegionId is not null)
+                {
+                    Require(regionIds.Contains(effect.RegionId), file, $"{effectField}.regionId",
+                        $"references missing region '{effect.RegionId}'.");
+                }
+            }
             Require(!string.IsNullOrWhiteSpace(definition.Message), file, $"{field}.message", "is required.");
         }
     }
@@ -502,6 +512,93 @@ internal static class TheatrePackageValidator
         Require(resources.CommandPoints >= 0, file, $"{field}.commandPoints", "must not be negative.");
     }
 
+    private static void ValidateCommandCost(string file, string field, CommandCostDefinition cost)
+    {
+        Require(cost is not null, file, field, "is required.");
+        Require(cost.BaseCommandPoints >= 0, file, $"{field}.baseCommandPoints", "must not be negative.");
+        Require(cost.FixedSupplies >= 0, file, $"{field}.fixedSupplies", "must not be negative.");
+        Require(cost.FixedFuel >= 0, file, $"{field}.fixedFuel", "must not be negative.");
+        Require(cost.SuppliesPerMovementCost >= 0, file, $"{field}.suppliesPerMovementCost", "must not be negative.");
+        Require(cost.FuelPerMovementCost >= 0, file, $"{field}.fuelPerMovementCost", "must not be negative.");
+    }
+
+    private static void ValidateVictoryRules(
+        string file,
+        VictoryRulesDefinition rules,
+        IReadOnlySet<string> regionIds)
+    {
+        Require(rules?.Outcomes is { Count: > 0 }, file, "victoryRules.outcomes", "must contain at least one outcome.");
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var priorities = new HashSet<int>();
+        var results = new HashSet<VictoryResult>();
+        var hasTurnLimit = false;
+
+        for (var outcomeIndex = 0; outcomeIndex < rules.Outcomes.Count; outcomeIndex++)
+        {
+            var outcome = rules.Outcomes[outcomeIndex];
+            var outcomeField = $"victoryRules.outcomes[{outcomeIndex}]";
+            Require(!string.IsNullOrWhiteSpace(outcome.Id), file, $"{outcomeField}.id", "is required.");
+            Require(ids.Add(outcome.Id), file, $"{outcomeField}.id", $"duplicates outcome '{outcome.Id}'.");
+            Require(priorities.Add(outcome.Priority), file, $"{outcomeField}.priority", $"duplicates priority '{outcome.Priority}'.");
+            Require(outcome.Priority > 0, file, $"{outcomeField}.priority", "must be positive.");
+            results.Add(outcome.Result);
+            Require(outcome.AllOf is { Count: > 0 }, file, $"{outcomeField}.allOf", "must contain at least one condition.");
+
+            for (var conditionIndex = 0; conditionIndex < outcome.AllOf.Count; conditionIndex++)
+            {
+                var condition = outcome.AllOf[conditionIndex];
+                var field = $"{outcomeField}.allOf[{conditionIndex}]";
+                Require(condition.ConsecutiveTurns > 0, file, $"{field}.consecutiveTurns", "must be positive.");
+                switch (condition.Type)
+                {
+                    case VictoryConditionType.ControlRegion:
+                        Require(condition.Side.HasValue, file, $"{field}.side", "is required.");
+                        Require(condition.RegionId is not null && regionIds.Contains(condition.RegionId), file,
+                            $"{field}.regionId", $"references missing region '{condition.RegionId}'.");
+                        break;
+                    case VictoryConditionType.ControlAtLeast:
+                        Require(condition.Side.HasValue, file, $"{field}.side", "is required.");
+                        ValidateRegionIds(file, $"{field}.regionIds", condition.RegionIds, regionIds);
+                        Require(condition.RequiredCount > 0 && condition.RequiredCount <= condition.RegionIds!.Count,
+                            file, $"{field}.requiredCount", "must be positive and no greater than regionIds count.");
+                        break;
+                    case VictoryConditionType.SupplyConnected:
+                        Require(condition.Side.HasValue, file, $"{field}.side", "is required.");
+                        ValidateRegionIds(file, $"{field}.sourceRegionIds", condition.SourceRegionIds, regionIds);
+                        ValidateRegionIds(file, $"{field}.destinationRegionIds", condition.DestinationRegionIds, regionIds);
+                        break;
+                    case VictoryConditionType.VictoryPointsAtLeast:
+                        Require(condition.Side.HasValue, file, $"{field}.side", "is required.");
+                        Require(condition.Threshold > 0, file, $"{field}.threshold", "must be positive.");
+                        break;
+                    case VictoryConditionType.TurnNumberAtLeast:
+                        Require(condition.TurnNumber > 0, file, $"{field}.turnNumber", "must be positive.");
+                        hasTurnLimit = true;
+                        break;
+                }
+            }
+        }
+
+        Require(results.Contains(VictoryResult.Victory), file, "victoryRules.outcomes", "must define a Victory outcome.");
+        Require(results.Contains(VictoryResult.Defeat), file, "victoryRules.outcomes", "must define a Defeat outcome.");
+        Require(results.Contains(VictoryResult.Draw), file, "victoryRules.outcomes", "must define an explicit Draw outcome.");
+        Require(hasTurnLimit, file, "victoryRules.outcomes", "must define an explicit turn-limit condition.");
+    }
+
+    private static void ValidateRegionIds(
+        string file,
+        string field,
+        IReadOnlyList<string>? values,
+        IReadOnlySet<string> regionIds)
+    {
+        Require(values is { Count: > 0 }, file, field, "must contain at least one region.");
+        for (var index = 0; index < values.Count; index++)
+        {
+            Require(regionIds.Contains(values[index]), file, $"{field}[{index}]",
+                $"references missing region '{values[index]}'.");
+        }
+    }
+
     private static string ResolvePackageFile(
         string theatrePath,
         string relativePath,
@@ -521,7 +618,7 @@ internal static class TheatrePackageValidator
     private static string EdgeKey(string left, string right) =>
         string.CompareOrdinal(left, right) < 0 ? $"{left}<->{right}" : $"{right}<->{left}";
 
-    private static void Require(bool condition, string file, string field, string message)
+    private static void Require([DoesNotReturnIf(false)] bool condition, string file, string field, string message)
     {
         if (!condition)
         {

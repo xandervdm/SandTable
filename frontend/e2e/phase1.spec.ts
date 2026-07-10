@@ -43,8 +43,20 @@ const state = {
   turnNumber: 1,
   campaignDate: scenario.startDate,
   resources: scenario.startingResources,
-  regions: map.regions.map(({ position: _position, ...region }: { position: unknown }) => region),
+  regions: map.regions.map(({ position: _position, ...region }: { position: unknown; id: string }) => ({
+    ...region,
+    adjacentRegionIds: map.routes.flatMap((route: { fromRegionId: string; toRegionId: string }) =>
+      route.fromRegionId === region.id
+        ? [route.toRegionId]
+        : route.toRegionId === region.id
+          ? [route.fromRegionId]
+          : [])
+  })),
+  routes: map.routes,
   units: units.units,
+  reserves: [],
+  victoryProgress: {},
+  scenarioEventHistory: [],
   activeTensions: [],
   tensionHistory: [],
   campaignModifiers: [],

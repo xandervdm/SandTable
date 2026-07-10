@@ -48,10 +48,8 @@ public class DockerPostgresSmokeTests
             new SubmitCommandsRequest(
             [
                 new SubmitCommandRequest(
-                    OrderType.Move,
-                    "21st-panzer",
-                    RegionId: null,
-                    TargetRegionId: targetRegionId)
+                    1,
+                    new MoveCommandPayload("21st-panzer", panzer.RegionId, [targetRegionId]))
             ]),
             cancellationToken);
 
@@ -79,6 +77,27 @@ public class DockerPostgresSmokeTests
         Assert.Contains(turns, turn => turn.TurnNumber == 1 && turn.Status == "Resolved");
         Assert.NotNull(resolvedTurn);
         Assert.Equal(resolved.Summary, resolvedTurn.Summary);
+
+        await using (var verificationConnection = new NpgsqlConnection(connectionString))
+        {
+            await verificationConnection.OpenAsync(cancellationToken);
+            await using var verificationCommand = new NpgsqlCommand(
+                """
+                select
+                    (select engine_version from public.campaign_snapshot where campaign_id = c.id and is_latest = true),
+                    (select command_payload ->> 'commandType' from public.campaign_command where campaign_id = c.id and command_source = 'Human' limit 1),
+                    (select command_payload ->> 'unitId' from public.campaign_command where campaign_id = c.id and command_source = 'Human' limit 1)
+                from public.campaign c
+                where c.uid = @campaignUid
+                """,
+                verificationConnection);
+            verificationCommand.Parameters.AddWithValue("campaignUid", campaignUid);
+            await using var reader = await verificationCommand.ExecuteReaderAsync(cancellationToken);
+            Assert.True(await reader.ReadAsync(cancellationToken));
+            Assert.Equal(EngineBaseline.CurrentVersion, reader.GetString(0));
+            Assert.Equal("Move", reader.GetString(1));
+            Assert.Equal("21st-panzer", reader.GetString(2));
+        }
 
         if (state.ActiveTensions.Count > 0)
         {

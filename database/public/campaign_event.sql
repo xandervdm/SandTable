@@ -24,7 +24,7 @@ create table public.campaign_event (
     constraint fk_campaign_event_campaign foreign key (campaign_id) references public.campaign (id),
     constraint fk_campaign_event_campaign_turn foreign key (campaign_turn_id) references public.campaign_turn (id),
     constraint ck_campaign_event_sequence_positive check (event_sequence > 0),
-    constraint ck_campaign_event_type check (event_type in ('Battle', 'Movement', 'Supply', 'Recon', 'Victory', 'Scenario', 'System')),
+    constraint ck_campaign_event_type check (event_type in ('Battle', 'Movement', 'Deployment', 'Supply', 'Recon', 'Tension', 'Victory', 'Scenario', 'System')),
     constraint ck_campaign_event_scope check (event_scope in ('Campaign', 'Turn', 'Region', 'Unit')),
     constraint ck_campaign_event_side check (side is null or side in ('Axis', 'Allies', 'Neutral')),
     constraint ck_campaign_event_payload_object check (jsonb_typeof(event_payload) = 'object'),

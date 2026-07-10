@@ -24,15 +24,15 @@ public class CommandValidatorTests
         var state = CreateState();
         var request = new SubmitCommandsRequest(
         [
-            new SubmitCommandRequest(OrderType.Move, "missing-unit", null, "frontline"),
-            new SubmitCommandRequest(OrderType.Attack, "axis-armour", "base", "distant")
+            new SubmitCommandRequest(1, new MoveCommandPayload("missing-unit", "base", ["frontline"])),
+            new SubmitCommandRequest(2, new AttackCommandPayload("axis-armour", "base", ["distant"]))
         ]);
 
         var exception = Assert.Throws<ApiValidationException>(() =>
             CommandValidator.ValidateSubmitCommands(state, Side.Axis, request));
 
-        Assert.Contains("commands[0].unitId", exception.Errors.Keys);
-        Assert.Contains("commands[1].targetRegionId", exception.Errors.Keys);
+        Assert.Contains("commands[0].command.unitId", exception.Errors.Keys);
+        Assert.Contains("commands[1].command.pathRegionIds[0]", exception.Errors.Keys);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class CommandValidatorTests
         var state = CreateState();
         var request = new SubmitCommandsRequest(
         [
-            new SubmitCommandRequest(OrderType.Move, "axis-armour", null, "open-desert")
+            new SubmitCommandRequest(1, new MoveCommandPayload("axis-armour", "base", ["open-desert"]))
         ]);
 
         CommandValidator.ValidateSubmitCommands(state, Side.Axis, request);
@@ -53,14 +53,14 @@ public class CommandValidatorTests
         var state = CreateState();
         var request = new SubmitCommandsRequest(
         [
-            new SubmitCommandRequest(OrderType.Move, "axis-armour", null, "frontline")
+            new SubmitCommandRequest(1, new MoveCommandPayload("axis-armour", "base", ["frontline"]))
         ]);
 
         var exception = Assert.Throws<ApiValidationException>(() =>
             CommandValidator.ValidateSubmitCommands(state, Side.Axis, request));
 
-        Assert.Contains("commands[0].targetRegionId", exception.Errors.Keys);
-        Assert.Contains("Use Attack instead.", exception.Errors["commands[0].targetRegionId"][0]);
+        Assert.Contains("commands[0].command.pathRegionIds", exception.Errors.Keys);
+        Assert.Contains("Use Attack instead.", exception.Errors["commands[0].command.pathRegionIds"][0]);
     }
 
     [Fact]
@@ -69,13 +69,13 @@ public class CommandValidatorTests
         var state = CreateState();
         var request = new SubmitCommandsRequest(
         [
-            new SubmitCommandRequest(OrderType.Recon, "axis-armour", null, "distant")
+            new SubmitCommandRequest(1, new ReconCommandPayload("axis-armour", "base", "distant"))
         ]);
 
         var exception = Assert.Throws<ApiValidationException>(() =>
             CommandValidator.ValidateSubmitCommands(state, Side.Axis, request));
 
-        Assert.Contains("commands[0].targetRegionId", exception.Errors.Keys);
+        Assert.Contains("commands[0].command.targetRegionId", exception.Errors.Keys);
     }
 
     [Fact]
@@ -84,13 +84,13 @@ public class CommandValidatorTests
         var state = CreateState();
         var request = new SubmitCommandsRequest(
         [
-            new SubmitCommandRequest(OrderType.Resupply, "axis-armour", null, "frontline")
+            new SubmitCommandRequest(1, new ResupplyCommandPayload("axis-armour", "frontline"))
         ]);
 
         var exception = Assert.Throws<ApiValidationException>(() =>
             CommandValidator.ValidateSubmitCommands(state, Side.Axis, request));
 
-        Assert.Contains("commands[0].targetRegionId", exception.Errors.Keys);
+        Assert.Contains("commands[0].command.regionId", exception.Errors.Keys);
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public class CommandValidatorTests
         var state = CreateState();
         var request = new SubmitCommandsRequest(
         [
-            new SubmitCommandRequest(OrderType.Attack, "axis-armour", null, "frontline"),
-            new SubmitCommandRequest(OrderType.Recon, "axis-logistics", null, "frontline")
+            new SubmitCommandRequest(1, new AttackCommandPayload("axis-armour", "base", ["frontline"])),
+            new SubmitCommandRequest(2, new ReconCommandPayload("axis-logistics", "base", "frontline"))
         ]);
 
         CommandValidator.ValidateSubmitCommands(state, Side.Axis, request);
@@ -117,20 +117,35 @@ public class CommandValidatorTests
             new DateOnly(1942, 6, 12),
             Side.Axis,
             Side.Allies,
-            new Resources(10, 10, 10, 10, 3),
+            new Dictionary<Side, Resources>
+            {
+                [Side.Axis] = new(10, 10, 10, 10, 3),
+                [Side.Allies] = new(10, 10, 10, 10, 3)
+            },
             [
-                new RegionState("base", "Base", "Desert", Side.Axis, 1, 1, [], ["frontline", "open-desert"]),
-                new RegionState("frontline", "Frontline", "Desert", Side.Allies, 1, 1, [], ["base"]),
-                new RegionState("open-desert", "Open Desert", "Desert", Side.Neutral, 0, 0, [], ["base"]),
-                new RegionState("distant", "Distant", "Desert", Side.Allies, 1, 1, [], [])
+                new RegionState("base", "Base", RegionKind.EntryPoint, "Desert", Side.Axis, 1, 1, [], ["frontline", "open-desert"]),
+                new RegionState("frontline", "Frontline", RegionKind.Objective, "Desert", Side.Allies, 1, 1, [], ["base"]),
+                new RegionState("open-desert", "Open Desert", RegionKind.OperationalPosition, "Desert", Side.Neutral, 0, 0, [], ["base"]),
+                new RegionState("distant", "Distant", RegionKind.PrimaryObjective, "Desert", Side.Allies, 1, 1, [], [])
+            ],
+            [
+                new RouteState("base-frontline", "base", "frontline", "Road", 1, 0),
+                new RouteState("base-open", "base", "open-desert", "Track", 1, 1)
             ],
             [
                 new UnitState("axis-armour", "Axis Armour", Side.Axis, UnitType.Armour, "base", 10, 10, 3, 5, 4, 8, 8, 5, UnitStatus.Ready),
                 new UnitState("axis-logistics", "Axis Logistics", Side.Axis, UnitType.Logistics, "base", 6, 6, 2, 1, 3, 10, 6, 5, UnitStatus.Ready),
                 new UnitState("allied-armour", "Allied Armour", Side.Allies, UnitType.Armour, "frontline", 10, 10, 3, 5, 4, 8, 8, 5, UnitStatus.Ready)
             ],
+            [],
+            Enum.GetValues<OrderType>().ToDictionary(
+                type => type,
+                _ => new CommandCostDefinition(1, 0, 0, 0, 0)),
+            1,
+            new VictoryRulesDefinition([]),
+            new Dictionary<string, int>(),
+            [],
             false,
-            null,
-            "frontline");
+            null);
     }
 }

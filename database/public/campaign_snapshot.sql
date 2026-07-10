@@ -24,6 +24,7 @@ create table public.campaign_snapshot (
     constraint ck_campaign_snapshot_type check (snapshot_type in ('Initial', 'TurnStart', 'TurnResolved', 'Autosave', 'ManualSave')),
     constraint ck_campaign_snapshot_turn_number_non_negative check (turn_number >= 0),
     constraint ck_campaign_snapshot_game_state_object check (jsonb_typeof(game_state) = 'object'),
+    constraint ck_campaign_snapshot_engine_version check (engine_version = 'sandtable-engine-v2'),
     constraint ck_campaign_snapshot_version_positive check (version > 0)
 );
 
@@ -31,5 +32,7 @@ create index ix_campaign_snapshot_campaign_id on public.campaign_snapshot (campa
 create index ix_campaign_snapshot_campaign_turn_id on public.campaign_snapshot (campaign_turn_id);
 create index ix_campaign_snapshot_type on public.campaign_snapshot (snapshot_type);
 create unique index ux_campaign_snapshot_latest_per_campaign on public.campaign_snapshot (campaign_id) where is_latest = true;
+create index ix_campaign_snapshot_campaign_timeline on public.campaign_snapshot (campaign_id, turn_number, id)
+    where snapshot_type in ('Initial', 'TurnResolved');
 
 comment on table public.campaign_snapshot is 'Serialized engine state persisted after campaign creation, saves, autosaves, and resolved turns. API remains stateless between requests.';
