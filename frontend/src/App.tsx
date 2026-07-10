@@ -1,21 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   ArrowRight,
   Building2,
   CircleDot,
+  ChevronLeft,
+  ChevronRight,
   Crosshair,
   Fuel,
+  Flag,
   Layers3,
   Loader2,
   MapPin,
   Package,
+  Pause,
   Play,
   Plus,
   RefreshCw,
   Shield,
+  Skull,
   Star,
   Trash2,
   Users,
+  Trophy,
+  Zap,
   X
 } from "lucide-react";
 import { HttpGameClient } from "./runtime/httpGameClient";
@@ -24,6 +32,7 @@ import type {
   CampaignEvent,
   CampaignStateResponse,
   CampaignSummary,
+  CampaignTimeline,
   CampaignTurnSummary,
   GameClient,
   OrderType,
@@ -63,6 +72,8 @@ export function App() {
   const [scenarioContent, setScenarioContent] = useState<ScenarioContent | null>(null);
   const [campaignState, setCampaignState] = useState<CampaignStateResponse | null>(null);
   const [events, setEvents] = useState<CampaignEvent[]>([]);
+  const [timeline, setTimeline] = useState<CampaignTimeline | null>(null);
+  const [replayEvent, setReplayEvent] = useState<CampaignEvent | null>(null);
   const [turns, setTurns] = useState<CampaignTurnSummary[]>([]);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedTargetRegionId, setSelectedTargetRegionId] = useState<string | null>(null);
@@ -113,11 +124,12 @@ export function App() {
     try {
       setBusy("Loading campaign");
       setError(null);
-      const [content, state, campaignEvents, campaignTurns] = await Promise.all([
+      const [content, state, campaignEvents, campaignTurns, campaignTimeline] = await Promise.all([
         client.loadScenarioContent(campaign.theatreId, campaign.scenarioId),
         client.loadCampaignState(campaign.campaignUid),
         client.loadEvents(campaign.campaignUid),
-        client.loadTurns(campaign.campaignUid)
+        client.loadTurns(campaign.campaignUid),
+        client.loadTimeline(campaign.campaignUid)
       ]);
       setScenarioContent(content);
       setSelectedTheatreId(campaign.theatreId);
@@ -126,6 +138,8 @@ export function App() {
       setCampaignState(state);
       setEvents(campaignEvents);
       setTurns(campaignTurns);
+      setTimeline(campaignTimeline);
+      setReplayEvent(null);
       setActiveCampaignUid(campaign.campaignUid);
       setSelectedTargetRegionId(null);
       setExpandedStackRegionId(null);
@@ -194,6 +208,8 @@ export function App() {
       setActiveCampaignUid(null);
       setEvents([]);
       setTurns([]);
+      setTimeline(null);
+      setReplayEvent(null);
       setPendingOrders([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load scenario.");
@@ -410,6 +426,8 @@ export function App() {
                 setActiveCampaignUid(null);
                 setEvents([]);
                 setTurns([]);
+                setTimeline(null);
+                setReplayEvent(null);
               }
             }}
           >
@@ -453,6 +471,7 @@ export function App() {
                 selectedTargetRegionId={selectedTargetRegionId}
                 validTargetIds={validTargetIds}
                 plannedUnitIds={pendingOrders.map((order) => order.unitId)}
+                replayEvent={replayEvent}
                 onUnitSelect={selectUnit}
                 onStackSelect={setExpandedStackRegionId}
                 onRegionSelect={(regionId) => {
@@ -549,7 +568,8 @@ export function App() {
             busy={busy}
             onChoose={chooseTension}
           />
-          <EventsPanel events={events} />
+          <ProgressPanel timeline={timeline} />
+          <EventsPanel events={events} onReplayEvent={setReplayEvent} />
         </aside>
       </main>
 
@@ -901,23 +921,211 @@ function TensionPanel({
   );
 }
 
-function EventsPanel({ events }: { events: CampaignEvent[] }) {
+function ProgressPanel({ timeline }: { timeline: CampaignTimeline | null }) {
+  if (!timeline || timeline.points.length === 0) {
+    return <Panel title="Campaign Progress"><p>Timeline data will appear after the campaign loads.</p></Panel>;
+  }
+
+  const width = 232;
+  const height = 92;
+  const plotTop = 10;
+  const plotBottom = 76;
+  const pointX = (index: number) => timeline.points.length === 1
+    ? width / 2
+    : 10 + index * (width - 20) / (timeline.points.length - 1);
+  const pointY = (percent: number) => plotBottom - Math.max(0, Math.min(100, percent)) / 100 * (plotBottom - plotTop);
+  const line = (side: "Axis" | "Allies") => timeline.points
+    .map((point, index) => `${pointX(index)},${pointY(point.sides[side].forceStrengthPercent)}`)
+    .join(" ");
+  const latest = timeline.points[timeline.points.length - 1];
+  const player = latest.sides[timeline.playerSide];
+  const enemy = latest.sides[timeline.enemySide];
+  const markers = timeline.points.flatMap((point) => point.markers.map((marker) => ({ marker, point })));
+
+  return (
+    <Panel title="Campaign Progress">
+      <div className="progress-chart" aria-label="Force Strength by turn">
+        <div className="progress-legend">
+          <span className="player-line">You {player.forceStrengthPercent}%</span>
+          <span className="enemy-line">Enemy {enemy.forceStrengthPercent}%</span>
+        </div>
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Player and enemy Force Strength lines">
+          {[25, 50, 75, 100].map((value) => (
+            <line key={value} x1="8" x2={width - 8} y1={pointY(value)} y2={pointY(value)} className="chart-grid-line" />
+          ))}
+          <polyline points={line(timeline.playerSide)} className="force-line player" />
+          <polyline points={line(timeline.enemySide)} className="force-line enemy" />
+          {timeline.points.map((point, index) => (
+            <g key={point.snapshotUid}>
+              <circle cx={pointX(index)} cy={pointY(point.sides[timeline.playerSide].forceStrengthPercent)} r="2.8" className="force-point player" />
+              <circle cx={pointX(index)} cy={pointY(point.sides[timeline.enemySide].forceStrengthPercent)} r="2.8" className="force-point enemy" />
+              <text x={pointX(index)} y="89" textAnchor="middle">{point.resolvedTurnNumber ?? "S"}</text>
+            </g>
+          ))}
+        </svg>
+        <div className="progress-metrics">
+          <span><strong>{player.survivingStrength}/{player.maximumStrength}</strong> Your strength</span>
+          <span><strong>{enemy.survivingStrength}/{enemy.maximumStrength}</strong> Enemy strength</span>
+          <span><strong>{player.controlledVictoryPoints}</strong> Your VP</span>
+          <span><strong>{enemy.controlledVictoryPoints}</strong> Enemy VP</span>
+        </div>
+        {markers.length > 0 ? (
+          <div className="timeline-markers" aria-label="Campaign timeline markers">
+            {markers.slice(-8).map(({ marker, point }) => (
+              <span key={`${point.snapshotUid}-${marker.eventUid}-${marker.markerType}`} title={marker.summary}>
+                {timelineMarkerIcon(marker.markerType)} T{point.resolvedTurnNumber} {marker.markerType}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </Panel>
+  );
+}
+
+type EventFilter = "All" | "Movement" | "Attack" | "Casualty" | "Supply" | "Tension" | "Victory";
+
+const eventFilters: EventFilter[] = ["All", "Movement", "Attack", "Casualty", "Supply", "Tension", "Victory"];
+
+function EventsPanel({
+  events,
+  onReplayEvent
+}: {
+  events: CampaignEvent[];
+  onReplayEvent(event: CampaignEvent | null): void;
+}) {
+  const [filter, setFilter] = useState<EventFilter>("All");
+  const [replayTurn, setReplayTurn] = useState<number | null>(null);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const filteredEvents = useMemo(() => events.filter((event) => matchesEventFilter(event, filter)), [events, filter]);
+  const groupedEvents = useMemo(() => Array.from(
+    filteredEvents.reduce((groups, event) => {
+      const group = groups.get(event.turnNumber) ?? [];
+      group.push(event);
+      groups.set(event.turnNumber, group);
+      return groups;
+    }, new Map<number, CampaignEvent[]>()).entries())
+    .sort(([left], [right]) => right - left)
+    .map(([turn, turnEvents]) => ({ turn, events: turnEvents.sort((left, right) => left.sequence - right.sequence) })), [filteredEvents]);
+  const replaySequence = useMemo(() => events
+    .filter((event) => event.turnNumber === replayTurn && (event.eventType === "Movement" || event.eventType === "Battle"))
+    .sort((left, right) => left.sequence - right.sequence), [events, replayTurn]);
+
+  useEffect(() => {
+    onReplayEvent(replaySequence[replayIndex] ?? null);
+  }, [onReplayEvent, replayIndex, replaySequence]);
+
+  useEffect(() => () => onReplayEvent(null), [onReplayEvent]);
+
+  useEffect(() => {
+    if (!playing || replaySequence.length === 0) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (replayIndex >= replaySequence.length - 1) {
+        setPlaying(false);
+      } else {
+        setReplayIndex((index) => index + 1);
+      }
+    }, 950);
+    return () => window.clearTimeout(timer);
+  }, [playing, replayIndex, replaySequence]);
+
+  function startReplay(turn: number) {
+    setReplayTurn(turn);
+    setReplayIndex(0);
+    setPlaying(true);
+  }
+
   return (
     <Panel title="Command Log">
       {events.length === 0 ? (
         <p>Resolved events will appear here.</p>
       ) : (
-        <ol className="event-list">
-          {events.slice(0, 10).map((event) => (
-            <li key={event.eventUid}>
-              <span>Turn {event.turnNumber}</span>
-              <strong>{event.summary}</strong>
-            </li>
-          ))}
-        </ol>
+        <div className="event-log">
+          <div className="event-filters" aria-label="Command log filters">
+            {eventFilters.map((value) => (
+              <button key={value} className={filter === value ? "selected" : ""} onClick={() => setFilter(value)} title={value}>
+                {eventFilterIcon(value)}<span>{value}</span>
+              </button>
+            ))}
+          </div>
+          {replayTurn !== null && replaySequence.length > 0 ? (
+            <div className="replay-controller" data-testid="replay-controller">
+              <button onClick={() => setReplayIndex((index) => Math.max(0, index - 1))} disabled={replayIndex === 0} aria-label="Previous replay event"><ChevronLeft size={14} /></button>
+              <button onClick={() => setPlaying((value) => !value)} aria-label={playing ? "Pause replay" : "Play replay"}>
+                {playing ? <Pause size={14} /> : <Play size={14} />}
+              </button>
+              <button onClick={() => setReplayIndex((index) => Math.min(replaySequence.length - 1, index + 1))} disabled={replayIndex >= replaySequence.length - 1} aria-label="Next replay event"><ChevronRight size={14} /></button>
+              <span>Turn {replayTurn} · {replayIndex + 1}/{replaySequence.length}</span>
+            </div>
+          ) : null}
+          {groupedEvents.length === 0 ? <p>No events match this filter.</p> : groupedEvents.map((group) => {
+            const replayable = events.some((event) => event.turnNumber === group.turn && (event.eventType === "Movement" || event.eventType === "Battle"));
+            return (
+              <section className="event-turn" key={group.turn}>
+                <header>
+                  <strong>Turn {group.turn}</strong>
+                  {replayable ? <button onClick={() => startReplay(group.turn)}><Play size={12} /> Replay</button> : null}
+                </header>
+                <ol className="event-list">
+                  {group.events.map((event) => (
+                    <li key={event.eventUid} className={`actor-${event.actor.toLowerCase()}`}>
+                      <span className="event-icon">{eventTypeIcon(event)}</span>
+                      <div>
+                        <span>{event.actor} · {eventCategory(event)}</span>
+                        <strong>{event.summary}</strong>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            );
+          })}
+        </div>
       )}
     </Panel>
   );
+}
+
+function matchesEventFilter(event: CampaignEvent, filter: EventFilter) {
+  if (filter === "All") return true;
+  if (filter === "Movement") return event.eventType === "Movement";
+  if (filter === "Attack" || filter === "Casualty") return event.eventType === "Battle";
+  return event.eventType === filter;
+}
+
+function eventCategory(event: CampaignEvent) {
+  if (event.eventType === "Battle") return "Attack · Casualties";
+  return event.eventType;
+}
+
+function eventFilterIcon(filter: EventFilter) {
+  if (filter === "Movement") return <ArrowRight size={13} />;
+  if (filter === "Attack") return <Crosshair size={13} />;
+  if (filter === "Casualty") return <Skull size={13} />;
+  if (filter === "Supply") return <Package size={13} />;
+  if (filter === "Tension") return <Zap size={13} />;
+  if (filter === "Victory") return <Trophy size={13} />;
+  return <Activity size={13} />;
+}
+
+function eventTypeIcon(event: CampaignEvent) {
+  if (event.eventType === "Movement") return <ArrowRight size={15} />;
+  if (event.eventType === "Battle") return <Crosshair size={15} />;
+  if (event.eventType === "Supply") return <Package size={15} />;
+  if (event.eventType === "Tension") return <Zap size={15} />;
+  if (event.eventType === "Victory") return <Trophy size={15} />;
+  return <Activity size={15} />;
+}
+
+function timelineMarkerIcon(markerType: CampaignTimeline["points"][number]["markers"][number]["markerType"]) {
+  if (markerType === "Casualty") return <Skull size={11} />;
+  if (markerType === "Objective") return <Flag size={11} />;
+  if (markerType === "Deployment") return <Users size={11} />;
+  if (markerType === "Tension") return <Zap size={11} />;
+  return <Trophy size={11} />;
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {

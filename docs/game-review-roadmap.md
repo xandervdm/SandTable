@@ -187,6 +187,8 @@ Exit gate:
 
 ### Phase 4 - Command Log, Turn Replay, and Progress Timeline
 
+Status: **Complete — 11 July 2026.** Persisted events are grouped by turn and labelled `You`, `Enemy`, or `System`; the command log has movement, attack, casualty, supply, tension, and victory filters; and the live UI replays stored movement/battle events through PixiJS. `GET /api/campaigns/{campaignUid}/timeline` projects Force Strength, unit counts, controlled VP, supply, morale, and persisted markers from `Initial`/`TurnResolved` snapshots without a history table.
+
 1. Group persisted events by turn and label them as `You`, `Enemy`, or `System`.
 2. Add movement, attack, casualty, supply, tension, and victory icons/filters.
 3. Ensure enemy moves and attacks are visible in the same resolved-turn narrative as player actions.

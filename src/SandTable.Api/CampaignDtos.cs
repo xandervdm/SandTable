@@ -23,6 +23,22 @@ public enum CampaignEventOrder
     LatestTurnFirst
 }
 
+public enum CampaignEventActor
+{
+    You,
+    Enemy,
+    System
+}
+
+public enum CampaignTimelineMarkerType
+{
+    Casualty,
+    Objective,
+    Deployment,
+    Tension,
+    Victory
+}
+
 public sealed record TheatreSummaryResponse(
     string TheatreId,
     string Name,
@@ -117,6 +133,42 @@ public sealed record CampaignEventResponse(
     GameEventType EventType,
     GameEventScope EventScope,
     Side? Side,
+    CampaignEventActor Actor,
+    string? RegionId,
+    string? UnitId,
+    string Summary,
+    IReadOnlyDictionary<string, object?> Payload);
+
+public sealed record CampaignTimelineResponse(
+    Guid CampaignUid,
+    Side PlayerSide,
+    Side EnemySide,
+    IReadOnlyList<CampaignTimelinePointResponse> Points);
+
+public sealed record CampaignTimelinePointResponse(
+    Guid SnapshotUid,
+    int TurnNumber,
+    int? ResolvedTurnNumber,
+    DateOnly CampaignDate,
+    IReadOnlyDictionary<Side, CampaignTimelineSideMetricsResponse> Sides,
+    IReadOnlyList<CampaignTimelineMarkerResponse> Markers);
+
+public sealed record CampaignTimelineSideMetricsResponse(
+    int SurvivingStrength,
+    int MaximumStrength,
+    decimal ForceStrengthPercent,
+    int ActiveUnitCount,
+    int DestroyedUnitCount,
+    int ControlledVictoryPoints,
+    decimal AverageSupply,
+    decimal AverageMorale);
+
+public sealed record CampaignTimelineMarkerResponse(
+    Guid EventUid,
+    int Sequence,
+    CampaignTimelineMarkerType MarkerType,
+    Side? Side,
+    CampaignEventActor Actor,
     string? RegionId,
     string? UnitId,
     string Summary,

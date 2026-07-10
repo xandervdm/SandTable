@@ -46,6 +46,11 @@ public class NorthAfricaScenarioTests
         Assert.NotEmpty(aiCommands);
         Assert.Equal(2, resolution.NextState.TurnNumber);
         Assert.Contains(resolution.Events, gameEvent => gameEvent.EventType == Engine.GameEventType.Movement);
+        var movement = Assert.Single(resolution.Events, gameEvent =>
+            gameEvent.UnitId == "15th-panzer" && gameEvent.EventType == Engine.GameEventType.Movement);
+        Assert.Equal("tripoli", movement.Payload["fromRegionId"]);
+        Assert.Equal("benghazi", movement.Payload["toRegionId"]);
+        Assert.True(movement.Payload.ContainsKey("objectiveCaptured"));
         Assert.Contains(resolution.NextState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "benghazi");
         Assert.Contains(startingState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "tripoli");
         var resolvedHumanCommand = Assert.Single(resolution.Commands, command => command.Command.Source == Engine.CommandSource.Human);

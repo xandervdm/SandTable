@@ -29,6 +29,7 @@ public class EndpointMetadataTests
         AssertEndpoint(endpoints, "GetCampaignSnapshot", "Campaigns");
         AssertEndpoint(endpoints, "GetCampaignState", "Campaigns");
         AssertEndpoint(endpoints, "ListCampaignEvents", "Campaigns");
+        AssertEndpoint(endpoints, "GetCampaignTimeline", "Campaigns");
         AssertEndpoint(endpoints, "ListCampaignTurns", "Turns");
         AssertEndpoint(endpoints, "GetCampaignTurn", "Turns");
         AssertEndpoint(endpoints, "SubmitCampaignCommands", "Commands");

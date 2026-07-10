@@ -62,6 +62,7 @@ public class DockerPostgresSmokeTests
             CampaignEventOrder.Chronological,
             cancellationToken);
         var turns = await service.ListCampaignTurnsAsync(campaignUid, limit: 100, cancellationToken);
+        var timeline = await service.GetCampaignTimelineAsync(campaignUid, cancellationToken);
         var resolvedTurn = await service.GetCampaignTurnAsync(campaignUid, turnNumber: 1, cancellationToken);
 
         Assert.NotNull(submitted);
@@ -73,6 +74,17 @@ public class DockerPostgresSmokeTests
         Assert.Equal(2, state.TurnNumber);
         Assert.NotNull(events);
         Assert.NotEmpty(events);
+        Assert.Contains(events, gameEvent => gameEvent.Actor == CampaignEventActor.You);
+        Assert.Contains(events, gameEvent =>
+            gameEvent.Actor == CampaignEventActor.Enemy
+            && gameEvent.EventType is GameEventType.Movement or GameEventType.Battle);
+        Assert.NotNull(timeline);
+        Assert.Equal(2, timeline.Points.Count);
+        Assert.Null(timeline.Points[0].ResolvedTurnNumber);
+        Assert.Equal(1, timeline.Points[1].ResolvedTurnNumber);
+        Assert.True(timeline.Points[1].Sides[Side.Axis].MaximumStrength > 0);
+        Assert.InRange(timeline.Points[1].Sides[Side.Axis].ForceStrengthPercent, 0m, 100m);
+        Assert.True(timeline.Points[1].Sides[Side.Allies].ControlledVictoryPoints >= 0);
         Assert.NotNull(turns);
         Assert.Contains(turns, turn => turn.TurnNumber == 1 && turn.Status == "Resolved");
         Assert.NotNull(resolvedTurn);

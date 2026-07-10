@@ -131,7 +131,91 @@ for (const viewport of viewports) {
   });
 }
 
-async function mockApi(page: Page) {
+test("Phase 4 command log groups actors, filters battles, and replays persisted events", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const campaignEvents = [
+    {
+      eventUid: "movement-you",
+      campaignTurnUid: "phase-4-turn",
+      turnNumber: 1,
+      sequence: 1,
+      eventType: "Movement",
+      eventScope: "Unit",
+      side: "Axis",
+      actor: "You",
+      regionId: "benghazi",
+      unitId: "21st-panzer",
+      summary: "21st Panzer Division moved to Benghazi.",
+      payload: { fromRegionId: "tripoli", toRegionId: "benghazi", objectiveCaptured: false }
+    },
+    {
+      eventUid: "battle-enemy",
+      campaignTurnUid: "phase-4-turn",
+      turnNumber: 1,
+      sequence: 2,
+      eventType: "Battle",
+      eventScope: "Region",
+      side: "Allies",
+      actor: "Enemy",
+      regionId: "gazala",
+      unitId: "7th-armoured",
+      summary: "7th Armoured Division attacked at Gazala.",
+      payload: { fromRegionId: "tobruk", toRegionId: "gazala", attackerDamage: 1, defenderDamage: 3 }
+    },
+    {
+      eventUid: "tension-system",
+      campaignTurnUid: "phase-4-turn",
+      turnNumber: 1,
+      sequence: 3,
+      eventType: "Tension",
+      eventScope: "Campaign",
+      side: null,
+      actor: "System",
+      regionId: null,
+      unitId: null,
+      summary: "Operational opportunity emerged.",
+      payload: {}
+    }
+  ];
+  const timeline = createTimeline([
+    { player: 100, enemy: 100, playerVp: 20, enemyVp: 52, resolvedTurnNumber: null, markers: [] },
+    {
+      player: 94,
+      enemy: 88,
+      playerVp: 24,
+      enemyVp: 48,
+      resolvedTurnNumber: 1,
+      markers: [{
+        eventUid: "battle-enemy",
+        sequence: 2,
+        markerType: "Casualty",
+        side: "Allies",
+        actor: "Enemy",
+        regionId: "gazala",
+        unitId: "7th-armoured",
+        summary: "7th Armoured Division attacked at Gazala.",
+        payload: { attackerDamage: 1, defenderDamage: 3 }
+      }]
+    }
+  ]);
+  await mockApi(page, { campaignEvents, timeline });
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Campaign Progress" })).toBeVisible();
+  await expect(page.getByText("You 94%")).toBeVisible();
+  await expect(page.getByText("Enemy 88%")).toBeVisible();
+  await expect(page.getByText("You · Movement")).toBeVisible();
+  await expect(page.getByText("Enemy · Attack · Casualties")).toBeVisible();
+  await expect(page.getByText("System · Tension")).toBeVisible();
+
+  await page.getByRole("button", { name: "Attack" }).last().click();
+  await expect(page.getByText("7th Armoured Division attacked at Gazala.")).toBeVisible();
+  await expect(page.getByText("21st Panzer Division moved to Benghazi.")).toBeHidden();
+  await page.getByRole("button", { name: "Replay" }).click();
+  await expect(page.getByTestId("replay-controller")).toContainText("Turn 1 · 1/2");
+});
+
+async function mockApi(page: Page, options: { campaignEvents?: unknown[]; timeline?: unknown } = {}) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const pathname = url.pathname;
@@ -192,7 +276,40 @@ async function mockApi(page: Page) {
       return;
     }
     if (pathname === `/api/campaigns/${campaign.campaignUid}/events`) {
-      await route.fulfill({ json: [] });
+      await route.fulfill({ json: options.campaignEvents ?? [] });
+      return;
+    }
+    if (pathname === `/api/campaigns/${campaign.campaignUid}/timeline`) {
+      const metrics = (side: "Axis" | "Allies") => {
+        const sideUnits = state.units.filter((unit: { side: string }) => unit.side === side);
+        const activeUnits = sideUnits.filter((unit: { status: string; strength: number }) => unit.status !== "Destroyed" && unit.strength > 0);
+        const survivingStrength = activeUnits.reduce((total: number, unit: { strength: number }) => total + unit.strength, 0);
+        const maximumStrength = sideUnits.reduce((total: number, unit: { maxStrength: number }) => total + unit.maxStrength, 0);
+        return {
+          survivingStrength,
+          maximumStrength,
+          forceStrengthPercent: maximumStrength === 0 ? 0 : Math.round(1000 * survivingStrength / maximumStrength) / 10,
+          activeUnitCount: activeUnits.length,
+          destroyedUnitCount: sideUnits.length - activeUnits.length,
+          controlledVictoryPoints: state.regions.filter((region: { owner: string }) => region.owner === side)
+            .reduce((total: number, region: { victoryPoints: number }) => total + region.victoryPoints, 0),
+          averageSupply: 0,
+          averageMorale: 0
+        };
+      };
+      await route.fulfill({ json: options.timeline ?? {
+        campaignUid: campaign.campaignUid,
+        playerSide: "Axis",
+        enemySide: "Allies",
+        points: [{
+          snapshotUid: state.snapshotUid,
+          turnNumber: 1,
+          resolvedTurnNumber: null,
+          campaignDate: state.campaignDate,
+          sides: { Axis: metrics("Axis"), Allies: metrics("Allies") },
+          markers: []
+        }]
+      } });
       return;
     }
     if (pathname === `/api/campaigns/${campaign.campaignUid}/turns`) {
@@ -212,4 +329,40 @@ async function mockApi(page: Page) {
     }
     await route.fulfill({ status: 404, json: { title: `Unhandled mock route ${pathname}` } });
   });
+}
+
+function createTimeline(points: Array<{
+  player: number;
+  enemy: number;
+  playerVp: number;
+  enemyVp: number;
+  resolvedTurnNumber: number | null;
+  markers: unknown[];
+}>) {
+  const sideMetrics = (percent: number, victoryPoints: number) => ({
+    survivingStrength: percent,
+    maximumStrength: 100,
+    forceStrengthPercent: percent,
+    activeUnitCount: 5,
+    destroyedUnitCount: percent < 100 ? 1 : 0,
+    controlledVictoryPoints: victoryPoints,
+    averageSupply: 7,
+    averageMorale: 8
+  });
+  return {
+    campaignUid: campaign.campaignUid,
+    playerSide: "Axis",
+    enemySide: "Allies",
+    points: points.map((point, index) => ({
+      snapshotUid: `phase-4-snapshot-${index}`,
+      turnNumber: index + 1,
+      resolvedTurnNumber: point.resolvedTurnNumber,
+      campaignDate: scenario.startDate,
+      sides: {
+        Axis: sideMetrics(point.player, point.playerVp),
+        Allies: sideMetrics(point.enemy, point.enemyVp)
+      },
+      markers: point.markers
+    }))
+  };
 }

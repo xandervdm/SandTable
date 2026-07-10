@@ -791,27 +791,205 @@ button:disabled {
   line-height: 1.35;
 }
 
+.progress-chart {
+  padding: 10px;
+}
+
+.progress-legend,
+.progress-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.progress-legend span {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.progress-legend .player-line {
+  color: #f0cc72;
+}
+
+.progress-legend .enemy-line {
+  color: #79b4d8;
+  text-align: right;
+}
+
+.progress-chart svg {
+  width: 100%;
+  display: block;
+  margin: 3px 0;
+  overflow: visible;
+}
+
+.progress-chart svg text {
+  fill: #a99f88;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.chart-grid-line {
+  stroke: rgba(220, 211, 184, 0.12);
+  stroke-width: 1;
+}
+
+.force-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.force-line.player,
+.force-point.player {
+  stroke: #f0cc72;
+  fill: #f0cc72;
+}
+
+.force-line.enemy,
+.force-point.enemy {
+  stroke: #79b4d8;
+  fill: #79b4d8;
+}
+
+.progress-metrics span {
+  color: #aaa089;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.progress-metrics strong {
+  display: block;
+  color: #efe4c8;
+  font-size: 13px;
+}
+
+.timeline-markers {
+  display: flex;
+  gap: 5px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(214, 197, 148, 0.13);
+  overflow-x: auto;
+}
+
+.timeline-markers span {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border: 1px solid #4e493e;
+  border-radius: 3px;
+  color: #cfc3a7;
+  background: #191b19;
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.event-log {
+  padding: 8px;
+}
+
+.event-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.event-filters button,
+.event-turn header button,
+.replay-controller button {
+  min-width: 0;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid #4d493f;
+  border-radius: 3px;
+  color: #bfb49c;
+  background: #191b19;
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.event-filters button.selected {
+  color: #1a160d;
+  border-color: #e8ce87;
+  background: #c7a85f;
+}
+
+.event-filters button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.replay-controller {
+  display: grid;
+  grid-template-columns: 30px 30px 30px 1fr;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #6a5935;
+  border-radius: 4px;
+  color: #efd58f;
+  background: rgba(211, 171, 78, 0.09);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.event-turn {
+  margin-top: 8px;
+}
+
+.event-turn > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid #524b3b;
+  color: #d5b96f;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.event-turn header button {
+  min-height: 24px;
+  padding: 0 7px;
+}
+
 .event-list {
   list-style: none;
   margin: 0;
-  padding: 10px;
+  padding: 0;
   display: grid;
-  gap: 9px;
+  gap: 0;
 }
 
 .event-list li {
-  padding: 8px 0;
+  display: grid;
+  grid-template-columns: 25px 1fr;
+  gap: 7px;
+  padding: 8px 2px;
   border-bottom: 1px solid rgba(214, 197, 148, 0.13);
 }
 
-.event-list span,
-.event-list strong {
+.event-list li > div span,
+.event-list li > div strong {
   display: block;
 }
 
-.event-list span {
+.event-list li > div span {
   color: #c7a85f;
-  font-size: 12px;
+  font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -821,6 +999,28 @@ button:disabled {
   font-size: 13px;
   line-height: 1.35;
   margin-top: 4px;
+}
+
+.event-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #554d3d;
+  border-radius: 50%;
+  color: #cfb361;
+  background: #171916;
+}
+
+.event-list li.actor-enemy .event-icon,
+.event-list li.actor-enemy > div span {
+  color: #82b8d7;
+}
+
+.event-list li.actor-system .event-icon,
+.event-list li.actor-system > div span {
+  color: #aaa79e;
 }
 
 .footer-bar {

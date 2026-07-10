@@ -304,10 +304,50 @@ export interface CampaignEvent {
   eventType: string;
   eventScope: string;
   side: Side | null;
+  actor: "You" | "Enemy" | "System";
   regionId: string | null;
   unitId: string | null;
   summary: string;
   payload: Record<string, unknown>;
+}
+
+export interface CampaignTimelineSideMetrics {
+  survivingStrength: number;
+  maximumStrength: number;
+  forceStrengthPercent: number;
+  activeUnitCount: number;
+  destroyedUnitCount: number;
+  controlledVictoryPoints: number;
+  averageSupply: number;
+  averageMorale: number;
+}
+
+export interface CampaignTimelineMarker {
+  eventUid: string;
+  sequence: number;
+  markerType: "Casualty" | "Objective" | "Deployment" | "Tension" | "Victory";
+  side: Side | null;
+  actor: "You" | "Enemy" | "System";
+  regionId: string | null;
+  unitId: string | null;
+  summary: string;
+  payload: Record<string, unknown>;
+}
+
+export interface CampaignTimelinePoint {
+  snapshotUid: string;
+  turnNumber: number;
+  resolvedTurnNumber: number | null;
+  campaignDate: string;
+  sides: Record<"Axis" | "Allies", CampaignTimelineSideMetrics>;
+  markers: CampaignTimelineMarker[];
+}
+
+export interface CampaignTimeline {
+  campaignUid: string;
+  playerSide: "Axis" | "Allies";
+  enemySide: "Axis" | "Allies";
+  points: CampaignTimelinePoint[];
 }
 
 export interface CampaignTurnSummary {
@@ -346,6 +386,7 @@ export interface GameClient {
   }): Promise<CampaignDetail>;
   loadCampaignState(campaignUid: string): Promise<CampaignStateResponse>;
   loadEvents(campaignUid: string): Promise<CampaignEvent[]>;
+  loadTimeline(campaignUid: string): Promise<CampaignTimeline>;
   loadTurns(campaignUid: string): Promise<CampaignTurnSummary[]>;
   submitCommands(campaignUid: string, commands: SubmitCommand[]): Promise<void>;
   resolveTurn(campaignUid: string): Promise<void>;

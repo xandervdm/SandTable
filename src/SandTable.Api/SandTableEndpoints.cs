@@ -153,6 +153,19 @@ public static class SandTableEndpoints
             .Produces<IReadOnlyList<CampaignEventResponse>>()
             .Produces(StatusCodes.Status404NotFound);
 
+        group.MapGet("/campaigns/{campaignUid:guid}/timeline", async (
+            Guid campaignUid,
+            [FromServices] CampaignService service,
+            CancellationToken cancellationToken) =>
+        {
+            var timeline = await service.GetCampaignTimelineAsync(campaignUid, cancellationToken);
+            return timeline is null ? Results.NotFound() : Results.Ok(timeline);
+        })
+            .WithName("GetCampaignTimeline")
+            .WithTags("Campaigns")
+            .Produces<CampaignTimelineResponse>()
+            .Produces(StatusCodes.Status404NotFound);
+
         group.MapGet("/campaigns/{campaignUid:guid}/turns", async (
             Guid campaignUid,
             int? limit,

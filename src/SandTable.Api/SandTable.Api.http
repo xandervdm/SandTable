@@ -59,6 +59,11 @@ Accept: application/json
 
 ###
 
+GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/timeline
+Accept: application/json
+
+###
+
 GET {{SandTable.Api_HostAddress}}/api/campaigns/{{CampaignUid}}/turns
 Accept: application/json
 

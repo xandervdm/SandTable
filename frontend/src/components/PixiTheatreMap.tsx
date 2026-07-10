@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import type {
+  CampaignEvent,
   CampaignStateResponse,
   MapDefinition,
   MapDisplayDefinition,
@@ -18,6 +19,7 @@ interface PixiTheatreMapProps {
   selectedTargetRegionId: string | null;
   validTargetIds: string[];
   plannedUnitIds: string[];
+  replayEvent: CampaignEvent | null;
   onUnitSelect(unitId: string): void;
   onStackSelect(regionId: string): void;
   onRegionSelect(regionId: string): void;
@@ -41,6 +43,7 @@ interface PixiSceneLayers {
   routes: Container;
   regionHits: Container;
   mode: Container;
+  replay: Container;
   labels: Container;
   units: Container;
 }
@@ -77,6 +80,7 @@ export function PixiTheatreMap({
   selectedTargetRegionId,
   validTargetIds,
   plannedUnitIds,
+  replayEvent,
   onUnitSelect,
   onStackSelect,
   onRegionSelect
@@ -209,6 +213,7 @@ export function PixiTheatreMap({
       selectedTargetRegionId,
       validTargetIds,
       plannedUnitIds,
+      replayEvent,
       onUnitSelect,
       onStackSelect,
       onRegionSelect
@@ -225,6 +230,7 @@ export function PixiTheatreMap({
     selectedTargetRegionId,
     validTargetIds,
     plannedUnitIds,
+    replayEvent,
     onUnitSelect,
     onStackSelect,
     onRegionSelect
@@ -249,13 +255,14 @@ function createSceneLayers(app: Application): PixiSceneLayers {
   const routes = createLayer("theatre-map-routes");
   const regionHits = createLayer("theatre-map-region-hits");
   const mode = createLayer("theatre-map-mode");
+  const replay = createLayer("theatre-map-replay");
   const labels = createLayer("theatre-map-labels");
   const units = createLayer("theatre-map-units");
 
-  world.addChild(background, routes, regionHits, mode);
+  world.addChild(background, routes, regionHits, mode, replay);
   app.stage.addChild(world, labels, units);
 
-  return { world, background, routes, regionHits, mode, labels, units };
+  return { world, background, routes, regionHits, mode, replay, labels, units };
 }
 
 function createLayer(label: string) {
@@ -293,9 +300,71 @@ function renderPixiScene(
   drawRoutes(layers.mode, routes, props, { highlightsOnly: true });
   drawRegionModeOverlays(layers.mode, props.map, props);
 
+  clearLayer(layers.replay);
+  drawReplayOverlay(layers.replay, props.map, props.replayEvent);
+
   clearLayer(layers.labels);
   clearLayer(layers.units);
   drawScreenOverlay(layers, transform, props);
+}
+
+function drawReplayOverlay(viewport: Container, map: MapDefinition, event: CampaignEvent | null) {
+  if (!event || (event.eventType !== "Movement" && event.eventType !== "Battle")) {
+    return;
+  }
+
+  const fromRegionId = payloadString(event.payload, "fromRegionId");
+  const toRegionId = payloadString(event.payload, "toRegionId") ?? event.regionId;
+  const from = map.regions.find((region) => region.id === fromRegionId);
+  const to = map.regions.find((region) => region.id === toRegionId);
+  if (!from || !to) {
+    return;
+  }
+
+  const attack = event.eventType === "Battle";
+  const color = attack ? 0xf0604d : 0xf6d06f;
+  const dx = to.position.x - from.position.x;
+  const dy = to.position.y - from.position.y;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const normalX = dx / length;
+  const normalY = dy / length;
+  const arrowSize = attack ? 18 : 14;
+  const overlay = new Graphics();
+  overlay
+    .circle(from.position.x, from.position.y, 12)
+    .stroke({ width: 4, color, alpha: 0.95 })
+    .moveTo(from.position.x, from.position.y)
+    .lineTo(to.position.x, to.position.y)
+    .stroke({ width: attack ? 7 : 6, color: 0x100d08, alpha: 0.72, cap: "round" })
+    .moveTo(from.position.x, from.position.y)
+    .lineTo(to.position.x, to.position.y)
+    .stroke({ width: attack ? 3.5 : 3, color, alpha: 0.98, cap: "round" })
+    .moveTo(to.position.x, to.position.y)
+    .lineTo(
+      to.position.x - normalX * arrowSize - normalY * arrowSize * 0.55,
+      to.position.y - normalY * arrowSize + normalX * arrowSize * 0.55)
+    .lineTo(
+      to.position.x - normalX * arrowSize + normalY * arrowSize * 0.55,
+      to.position.y - normalY * arrowSize - normalX * arrowSize * 0.55)
+    .closePath()
+    .fill({ color, alpha: 0.98 });
+
+  if (attack) {
+    overlay.circle(to.position.x, to.position.y, 22).stroke({ width: 3, color, alpha: 0.9 });
+    overlay
+      .moveTo(to.position.x - 28, to.position.y)
+      .lineTo(to.position.x + 28, to.position.y)
+      .moveTo(to.position.x, to.position.y - 28)
+      .lineTo(to.position.x, to.position.y + 28)
+      .stroke({ width: 2, color, alpha: 0.78 });
+  }
+
+  viewport.addChild(overlay);
+}
+
+function payloadString(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return typeof value === "string" ? value : null;
 }
 
 function clearLayer(layer: Container) {

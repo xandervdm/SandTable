@@ -331,7 +331,116 @@ public sealed class CampaignService(
                 },
                 cancellationToken: cancellationToken));
 
-        return rows.Select(row => row.ToResponse()).ToArray();
+        var playerSide = Enum.Parse<Side>(campaign.PlayerSide);
+        return rows.Select(row => row.ToResponse(playerSide)).ToArray();
+    }
+
+    public async Task<CampaignTimelineResponse?> GetCampaignTimelineAsync(
+        Guid campaignUid,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = connectionFactory.CreateConnection();
+        var campaign = await LoadCampaignAsync(connection, null, campaignUid, cancellationToken);
+        if (campaign is null)
+        {
+            return null;
+        }
+
+        var snapshots = (await connection.QueryAsync<TimelineSnapshotStorageRow>(
+            new CommandDefinition(
+                """
+                select
+                    cs.uid as SnapshotUid,
+                    cs.campaign_turn_id as CampaignTurnId,
+                    cs.snapshot_type as SnapshotType,
+                    cs.turn_number as TurnNumber,
+                    ct.turn_number as ResolvedTurnNumber,
+                    cs.engine_version as EngineVersion,
+                    cs.game_state::text as GameStateJson
+                from public.campaign_snapshot cs
+                left join public.campaign_turn ct on ct.id = cs.campaign_turn_id
+                where cs.campaign_id = @CampaignId
+                    and cs.snapshot_type in ('Initial', 'TurnResolved')
+                order by cs.id
+                """,
+                new { CampaignId = campaign.Id },
+                cancellationToken: cancellationToken))).ToArray();
+
+        var markerRows = (await connection.QueryAsync<TimelineEventRow>(
+            new CommandDefinition(
+                """
+                select
+                    ce.uid as EventUid,
+                    ce.campaign_turn_id as CampaignTurnId,
+                    ce.event_sequence as Sequence,
+                    ce.event_type as EventType,
+                    ce.side,
+                    ce.region_id as RegionId,
+                    ce.unit_id as UnitId,
+                    ce.summary,
+                    ce.event_payload::text as PayloadJson
+                from public.campaign_event ce
+                where ce.campaign_id = @CampaignId
+                    and ce.event_type in ('Battle', 'Movement', 'Deployment', 'Tension', 'Victory')
+                order by ce.campaign_turn_id, ce.event_sequence
+                """,
+                new { CampaignId = campaign.Id },
+                cancellationToken: cancellationToken))).ToArray();
+
+        var playerSide = Enum.Parse<Side>(campaign.PlayerSide);
+        var enemySide = Enum.Parse<Side>(campaign.EnemySide);
+        var markersByTurn = markerRows
+            .SelectMany(row => row.ToMarkers(playerSide))
+            .GroupBy(projection => projection.CampaignTurnId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<CampaignTimelineMarkerResponse>)group.Select(item => item.Marker).ToArray());
+
+        var points = snapshots.Select(snapshot =>
+        {
+            var state = snapshot.ReadState();
+            var sides = new Dictionary<Side, CampaignTimelineSideMetricsResponse>
+            {
+                [Side.Axis] = CalculateTimelineMetrics(state, Side.Axis),
+                [Side.Allies] = CalculateTimelineMetrics(state, Side.Allies)
+            };
+            var markers = snapshot.SnapshotType == "TurnResolved"
+                && snapshot.CampaignTurnId.HasValue
+                && markersByTurn.TryGetValue(snapshot.CampaignTurnId.Value, out var resolvedMarkers)
+                    ? resolvedMarkers
+                    : Array.Empty<CampaignTimelineMarkerResponse>();
+
+            return new CampaignTimelinePointResponse(
+                snapshot.SnapshotUid,
+                snapshot.TurnNumber,
+                snapshot.SnapshotType == "TurnResolved" ? snapshot.ResolvedTurnNumber : null,
+                state.CampaignDate,
+                sides,
+                markers);
+        }).ToArray();
+
+        return new CampaignTimelineResponse(campaignUid, playerSide, enemySide, points);
+    }
+
+    private static CampaignTimelineSideMetricsResponse CalculateTimelineMetrics(GameState state, Side side)
+    {
+        var units = state.Units.Where(unit => unit.Side == side).ToArray();
+        var active = units.Where(unit => unit.Status != UnitStatus.Destroyed && unit.Strength > 0).ToArray();
+        var maximumStrength = units.Sum(unit => unit.MaxStrength);
+        var survivingStrength = units.Sum(unit => unit.Status == UnitStatus.Destroyed ? 0 : Math.Max(0, unit.Strength));
+        var forceStrength = maximumStrength == 0
+            ? 0m
+            : Math.Round(100m * survivingStrength / maximumStrength, 1, MidpointRounding.AwayFromZero);
+
+        return new CampaignTimelineSideMetricsResponse(
+            survivingStrength,
+            maximumStrength,
+            forceStrength,
+            active.Length,
+            units.Length - active.Length,
+            state.Regions.Where(region => region.Owner == side).Sum(region => region.VictoryPoints),
+            active.Length == 0 ? 0m : Math.Round((decimal)active.Average(unit => unit.Supply), 1, MidpointRounding.AwayFromZero),
+            active.Length == 0 ? 0m : Math.Round((decimal)active.Average(unit => unit.Morale), 1, MidpointRounding.AwayFromZero));
     }
 
     public async Task<IReadOnlyList<CampaignTurnSummaryResponse>?> ListCampaignTurnsAsync(
@@ -1309,7 +1418,7 @@ internal sealed class CampaignEventRow
     public string Summary { get; init; } = string.Empty;
     public string PayloadJson { get; init; } = "{}";
 
-    public CampaignEventResponse ToResponse()
+    public CampaignEventResponse ToResponse(Side playerSide)
     {
         var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(PayloadJson, ApiJson.SerializerOptions)
             ?? new Dictionary<string, object?>();
@@ -1321,10 +1430,100 @@ internal sealed class CampaignEventRow
             Enum.Parse<GameEventType>(EventType),
             Enum.Parse<GameEventScope>(EventScope),
             Side is null ? null : Enum.Parse<Side>(Side),
+            ResolveActor(Side is null ? null : Enum.Parse<Side>(Side), playerSide),
             RegionId,
             UnitId,
             Summary,
             payload);
+    }
+
+    internal static CampaignEventActor ResolveActor(Side? side, Side playerSide) => side switch
+    {
+        null or SandTable.Engine.Side.Neutral => CampaignEventActor.System,
+        _ when side == playerSide => CampaignEventActor.You,
+        _ => CampaignEventActor.Enemy
+    };
+}
+
+internal sealed class TimelineSnapshotStorageRow
+{
+    public Guid SnapshotUid { get; init; }
+    public long? CampaignTurnId { get; init; }
+    public string SnapshotType { get; init; } = string.Empty;
+    public int TurnNumber { get; init; }
+    public int? ResolvedTurnNumber { get; init; }
+    public string EngineVersion { get; init; } = string.Empty;
+    public string GameStateJson { get; init; } = string.Empty;
+
+    public GameState ReadState()
+    {
+        if (EngineVersion != EngineBaseline.CurrentVersion)
+        {
+            throw new InvalidOperationException(
+                $"Snapshot '{SnapshotUid}' uses engine version '{EngineVersion}', expected '{EngineBaseline.CurrentVersion}'.");
+        }
+
+        return JsonSerializer.Deserialize<GameState>(GameStateJson, ApiJson.SerializerOptions)
+            ?? throw new InvalidOperationException($"Snapshot '{SnapshotUid}' does not contain a valid game state.");
+    }
+}
+
+internal sealed class TimelineEventRow
+{
+    public Guid EventUid { get; init; }
+    public long CampaignTurnId { get; init; }
+    public int Sequence { get; init; }
+    public string EventType { get; init; } = string.Empty;
+    public string? Side { get; init; }
+    public string? RegionId { get; init; }
+    public string? UnitId { get; init; }
+    public string Summary { get; init; } = string.Empty;
+    public string PayloadJson { get; init; } = "{}";
+
+    public IReadOnlyList<(long CampaignTurnId, CampaignTimelineMarkerResponse Marker)> ToMarkers(Side playerSide)
+    {
+        var eventType = Enum.Parse<GameEventType>(EventType);
+        var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(PayloadJson, ApiJson.SerializerOptions)
+            ?? new Dictionary<string, object?>();
+        SandTable.Engine.Side? side = Side is null ? null : Enum.Parse<SandTable.Engine.Side>(Side);
+        var markerTypes = eventType switch
+        {
+            GameEventType.Battle when PayloadBoolean(payload, "objectiveCaptured") =>
+                new[] { CampaignTimelineMarkerType.Casualty, CampaignTimelineMarkerType.Objective },
+            GameEventType.Battle => [CampaignTimelineMarkerType.Casualty],
+            GameEventType.Movement when PayloadBoolean(payload, "objectiveCaptured") => [CampaignTimelineMarkerType.Objective],
+            GameEventType.Deployment => [CampaignTimelineMarkerType.Deployment],
+            GameEventType.Tension => [CampaignTimelineMarkerType.Tension],
+            GameEventType.Victory => [CampaignTimelineMarkerType.Victory],
+            _ => Array.Empty<CampaignTimelineMarkerType>()
+        };
+
+        return markerTypes.Select(markerType => (CampaignTurnId, new CampaignTimelineMarkerResponse(
+                EventUid,
+                Sequence,
+                markerType,
+                side,
+                CampaignEventRow.ResolveActor(side, playerSide),
+                RegionId,
+                UnitId,
+                Summary,
+                payload)))
+            .ToArray();
+    }
+
+    private static bool PayloadBoolean(IReadOnlyDictionary<string, object?> payload, string key)
+    {
+        if (!payload.TryGetValue(key, out var value) || value is null)
+        {
+            return false;
+        }
+
+        return value switch
+        {
+            bool boolean => boolean,
+            JsonElement { ValueKind: JsonValueKind.True } => true,
+            _ => false
+        };
     }
 }
 

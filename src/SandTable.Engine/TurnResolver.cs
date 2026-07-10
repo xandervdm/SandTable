@@ -76,7 +76,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 events.Count + 1,
                 GameEventType.Victory,
                 GameEventScope.Campaign,
-                startingState.PlayerSide,
+                null,
                 null,
                 null,
                 $"Campaign ended with {result}.",
@@ -108,7 +108,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                         events.Count + 1,
                         GameEventType.Tension,
                         GameEventScope.Campaign,
-                        startingState.PlayerSide,
+                        null,
                         null,
                         null,
                         $"Operational opportunity emerged: {tension.Title}.",
@@ -163,6 +163,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             Supply = Math.Max(0, unit.Supply - 1)
         };
 
+        var objectiveCaptured = targetRegion.Owner != unit.Side && targetRegion.VictoryPoints > 0;
         regions[targetRegion.Id] = targetRegion with { Owner = unit.Side };
         events.Add(new GameEvent(
             events.Count + 1,
@@ -175,7 +176,9 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             new Dictionary<string, object?>
             {
                 ["fromRegionId"] = currentRegion.Id,
-                ["toRegionId"] = targetRegion.Id
+                ["toRegionId"] = targetRegion.Id,
+                ["previousOwner"] = targetRegion.Owner.ToString(),
+                ["objectiveCaptured"] = objectiveCaptured
             }));
 
         return new ResolvedCommand(command, Accepted: true, RejectionReason: null, ZeroCost);
@@ -209,6 +212,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
 
         if (defenders.Length == 0)
         {
+            var objectiveCaptured = targetRegion.Owner != attacker.Side && targetRegion.VictoryPoints > 0;
             units[attacker.Id] = attacker with
             {
                 RegionId = targetRegion.Id,
@@ -223,7 +227,13 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 targetRegion.Id,
                 attacker.Id,
                 $"{attacker.Name} occupied {targetRegion.Name}.",
-                new Dictionary<string, object?> { ["toRegionId"] = targetRegion.Id }));
+                new Dictionary<string, object?>
+                {
+                    ["fromRegionId"] = currentRegion.Id,
+                    ["toRegionId"] = targetRegion.Id,
+                    ["previousOwner"] = targetRegion.Owner.ToString(),
+                    ["objectiveCaptured"] = objectiveCaptured
+                }));
             return new ResolvedCommand(command, Accepted: true, RejectionReason: null, ZeroCost);
         }
 
@@ -248,6 +258,10 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             Status = nextDefenderStrength == 0 ? UnitStatus.Destroyed : UnitStatus.Disrupted
         };
 
+        var objectiveCapturedAfterBattle = nextDefenderStrength == 0
+            && nextAttackerStrength > 0
+            && targetRegion.Owner != attacker.Side
+            && targetRegion.VictoryPoints > 0;
         if (nextDefenderStrength == 0 && nextAttackerStrength > 0)
         {
             units[attacker.Id] = units[attacker.Id] with { RegionId = targetRegion.Id };
@@ -267,8 +281,18 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             {
                 ["attackerUnitId"] = attacker.Id,
                 ["defenderUnitId"] = defender.Id,
+                ["fromRegionId"] = currentRegion.Id,
+                ["toRegionId"] = targetRegion.Id,
                 ["attackScore"] = attackScore,
-                ["defenceScore"] = defenceScore
+                ["defenceScore"] = defenceScore,
+                ["attackerDamage"] = attackerDamage,
+                ["defenderDamage"] = defenderDamage,
+                ["attackerStrength"] = nextAttackerStrength,
+                ["defenderStrength"] = nextDefenderStrength,
+                ["attackerDestroyed"] = nextAttackerStrength == 0,
+                ["defenderDestroyed"] = nextDefenderStrength == 0,
+                ["previousOwner"] = targetRegion.Owner.ToString(),
+                ["objectiveCaptured"] = objectiveCapturedAfterBattle
             }));
 
         return new ResolvedCommand(command, Accepted: true, RejectionReason: null, ZeroCost);

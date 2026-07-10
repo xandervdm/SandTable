@@ -3,6 +3,7 @@ import type {
   CampaignEvent,
   CampaignStateResponse,
   CampaignSummary,
+  CampaignTimeline,
   CampaignTurnSummary,
   GameClient,
   ScenarioContent,
@@ -79,6 +80,10 @@ export class HttpGameClient implements GameClient {
 
   loadEvents(campaignUid: string) {
     return request<CampaignEvent[]>(`/api/campaigns/${campaignUid}/events?order=LatestTurnFirst&limit=60`);
+  }
+
+  loadTimeline(campaignUid: string) {
+    return request<CampaignTimeline>(`/api/campaigns/${campaignUid}/timeline`);
   }
 
   loadTurns(campaignUid: string) {
