@@ -2,6 +2,8 @@
 
 SandTable V1 uses a small ASP.NET Core API over a pure Engine and a PostgreSQL database.
 
+This file describes the running V1 implementation. The reviewed V2 content/API/persistence target is [`development-baseline-v2.md`](development-baseline-v2.md) and is implemented only through the ordered roadmap phases.
+
 ## Shape
 
 - `SandTable.Api` owns HTTP, Dapper persistence, connection handling, content file loading, and request/response DTOs.

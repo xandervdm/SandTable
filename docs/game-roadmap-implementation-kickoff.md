@@ -1,5 +1,7 @@
 # SandTable Game Roadmap Implementation Kickoff
 
+> Status update — 10 July 2026: Phase 0 and Phase 1 are complete. This original kickoff is retained as implementation history and should not be reused as a current start prompt. Continue with Phase 2 from `docs/game-review-roadmap.md` and `docs/architecture/development-baseline-v2.md`.
+
 Paste the prompt below into a new Codex task to begin implementation.
 
 ```text

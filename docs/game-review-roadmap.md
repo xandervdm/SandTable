@@ -79,7 +79,7 @@ For North Africa, expand the graph with a limited number of meaningful operation
 
 ## Target Theatre Package
 
-Adopt one explicit theatre manifest and one consistent package layout. Exact filenames may be adjusted during the contract-design step, but there must be only one supported convention after the development reset.
+Phase 0 freezes the package and breaking contract details in [`architecture/development-baseline-v2.md`](architecture/development-baseline-v2.md). There is one supported V2 convention after the development reset.
 
 ```text
 content/theatres/<theatreId>/
@@ -92,13 +92,14 @@ content/theatres/<theatreId>/
   doctrines.json
   events.json
   tension-cards.json
-  scenario-*.json
+  scenarios/
+    <scenarioId>.json
   assets/
     map-base.png
     ...
 ```
 
-The manifest should identify the theatre, supported scenarios, catalogue files, display file, asset manifest, and content contract version. A build/package step should copy or expose theatre assets to the frontend without making `frontend/public` the authoring source of truth.
+The manifest identifies the theatre, supported scenarios, catalogue files, display file, asset manifest, and `sandtable-content-v2` contract version. A validated build/package step copies declared assets from the theatre package into generated frontend public output; `frontend/public` is not the authoring source of truth.
 
 Content validation must fail fast with actionable paths and IDs. Adding a theatre must not require changes to `CampaignService`, `GameContentRepository`, React headings, or renderer code.
 
@@ -107,6 +108,8 @@ Content validation must fail fast with actionable paths and IDs. Adding a theatr
 Each phase should remain a reviewable vertical slice. Development-mode freedom permits breaking changes and database resets, but it should not be used as a reason for an uncontrolled rewrite.
 
 ### Phase 0 - Establish the New Development Baseline
+
+Status: **Complete — 10 July 2026.** The reviewed target contract is [`architecture/development-baseline-v2.md`](architecture/development-baseline-v2.md), the theatre pipeline is aligned to it, and the Engine-owned snapshot identifier is `sandtable-engine-v2`.
 
 1. Confirm and document the new content, Engine, API, and persistence contracts.
 2. Decide the final theatre package filenames and asset-serving flow.
@@ -126,6 +129,8 @@ Exit gate:
 - The target contracts are written down and reviewed before broad implementation starts.
 
 ### Phase 1 - Stabilise PixiJS and the Command Table
+
+Status: **Complete — 10 July 2026.** Fresh-session browser regression coverage verifies the required desktop viewports, background art, stack selection, resource visibility, and clean Pixi console.
 
 1. Fix the background asset lifecycle so a fresh browser session always renders the theatre art.
 2. Add a regression check that opens a fresh local browser session and confirms the background renders without Pixi asset warnings.
@@ -305,4 +310,3 @@ Also run:
 - Use a bounded reserve pool rather than unlimited unit creation.
 - Derive timeline metrics from authoritative snapshots initially.
 - Build one clean theatre package method before adding another theatre.
-

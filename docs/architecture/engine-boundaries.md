@@ -2,6 +2,8 @@
 
 `SandTable.Engine` is the deterministic game rules core.
 
+The current implementation remains the V1 model until the coordinated Phase 3 reset. The reviewed breaking target, including per-side resources, typed commands, reserves, victory progress, and scenario-event history, is [`development-baseline-v2.md`](development-baseline-v2.md).
+
 ## Allowed
 
 The Engine may contain:

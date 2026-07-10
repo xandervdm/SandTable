@@ -16,7 +16,6 @@ public sealed class CampaignService(
     TensionChoiceResolver tensionChoiceResolver)
 {
     private const string Actor = "system:dev-user";
-    private const string EngineVersion = "sandtable-engine-v1";
 
     public async Task<CampaignDetailResponse> CreateCampaignAsync(
         CreateCampaignRequest request,
@@ -831,7 +830,7 @@ public sealed class CampaignService(
                     SnapshotType = snapshotType,
                     TurnNumber = state.TurnNumber,
                     GameState = JsonSerializer.Serialize(state, ApiJson.SerializerOptions),
-                    EngineVersion,
+                    EngineVersion = EngineBaseline.CurrentVersion,
                     RandomSeed = randomSeed,
                     StateHash = CreateStateHash(state),
                     IsLatest = isLatest,

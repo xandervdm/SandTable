@@ -51,6 +51,8 @@ The API should update existing latest snapshots to `is_latest = false` before in
 
 Snapshot writes are the main durability boundary for stateless API behavior.
 
+The reviewed V2 reset keeps this JSON-snapshot boundary and derives timeline metrics from snapshots rather than adding history tables. See [`development-baseline-v2.md`](development-baseline-v2.md). SQL changes for that baseline are made directly in Phase 3 after the target database is verified.
+
 ## Extension Notes
 
 The schema uses `gen_random_uuid()`, which requires `pgcrypto` on PostgreSQL.

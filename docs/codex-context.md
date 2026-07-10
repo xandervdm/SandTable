@@ -21,6 +21,13 @@ Primary source areas:
 
 ## Current Architecture
 
+Roadmap status as of 10 July 2026:
+
+- Phase 0 and Phase 1 are complete.
+- [`architecture/development-baseline-v2.md`](architecture/development-baseline-v2.md) is the reviewed breaking target.
+- The current content and runtime models remain V1 until the ordered Phase 2 package work and Phase 3 Engine/API/SQL reset implement that target.
+- Do not add compatibility adapters between those development baselines.
+
 The current backend is a thin vertical slice:
 
 1. Load North Africa content.
