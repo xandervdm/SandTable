@@ -27,6 +27,21 @@ internal static class TheatrePackageValidator
         "playerFrontlineHighestVictory"
     };
 
+    private static readonly HashSet<string> CampaignModifierKeys = new(StringComparer.Ordinal)
+    {
+        "attack",
+        "defence",
+        "commandPoints",
+        "fuelReserve",
+        "supplyRisk",
+        "supplyDiscipline",
+        "moraleRisk",
+        "manpowerRisk",
+        "tempoCost",
+        "recon",
+        "enemyMoralePressure"
+    };
+
     public static IReadOnlyDictionary<string, string> ValidateManifest(
         string theatrePath,
         TheatreManifest manifest)
@@ -456,6 +471,14 @@ internal static class TheatrePackageValidator
                 Require(!string.IsNullOrWhiteSpace(effect.Name), file, $"{field}.name", "is required.");
                 Require(effect.DurationTurns > 0, file, $"{field}.durationTurns", "must be positive.");
                 Require(effect.Values is not null, file, $"{field}.values", "is required.");
+                if (effect.Values is not null)
+                {
+                    Require(effect.Values.Count > 0, file, $"{field}.values", "must contain at least one modifier.");
+                    foreach (var key in effect.Values.Keys)
+                    {
+                        Require(CampaignModifierKeys.Contains(key), file, $"{field}.values.{key}", $"uses unsupported modifier '{key}'.");
+                    }
+                }
                 break;
             case "modifyUnitStat":
                 ValidateOptionalSelector(file, $"{field}.unitSelector", effect.UnitSelector, UnitTargetSelectors, required: true);

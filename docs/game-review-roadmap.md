@@ -203,6 +203,8 @@ Exit gate:
 
 ### Phase 5 - Make Existing Systems Matter
 
+Status: **Complete — 11 July 2026.** Ordered per-side command budgets now spend authored command/supply/fuel costs; controlled weighted routes trace supply from ports and depots; and disconnected units suffer visible escalating disruption and attrition. Support, Recon, Resupply, and Hold Position have deterministic effects, authored campaign modifiers change resolution, and multi-condition outcomes use persisted consecutive-turn progress. The command table projects costs and supply state before submission, while Engine and API tests cover each rule.
+
 1. Make command points constrain the number or type of orders/actions each turn.
 2. Implement route-based supply tracing from controlled ports, depots, and designated sources.
 3. Apply fuel and supply costs plus escalating, visible out-of-supply effects.

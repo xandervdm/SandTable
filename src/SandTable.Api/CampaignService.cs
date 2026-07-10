@@ -438,6 +438,7 @@ public sealed class CampaignService(
             forceStrength,
             active.Length,
             units.Length - active.Length,
+            active.Count(unit => unit.SupplyStatus == UnitSupplyStatus.OutOfSupply),
             state.Regions.Where(region => region.Owner == side).Sum(region => region.VictoryPoints),
             active.Length == 0 ? 0m : Math.Round((decimal)active.Average(unit => unit.Supply), 1, MidpointRounding.AwayFromZero),
             active.Length == 0 ? 0m : Math.Round((decimal)active.Average(unit => unit.Morale), 1, MidpointRounding.AwayFromZero));

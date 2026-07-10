@@ -60,7 +60,7 @@ public sealed class ScenarioFactory
                 DeployedUnitId: null))
             .ToArray();
 
-        return new GameState(
+        var initialState = new GameState(
             map.TheatreId,
             scenario.ScenarioId,
             scenario.Name,
@@ -96,6 +96,21 @@ public sealed class ScenarioFactory
             Array.Empty<string>(),
             IsComplete: false,
             Result: null);
+
+        return initialState with
+        {
+            Units = initialState.Units.Select(unit =>
+            {
+                var connected = SupplyTracer.Trace(initialState, unit.Side, unit.RegionId).IsConnected;
+                return unit with
+                {
+                    SupplyStatus = connected
+                        ? unit.Supply <= 3 ? UnitSupplyStatus.LowSupply : UnitSupplyStatus.InSupply
+                        : UnitSupplyStatus.OutOfSupply,
+                    OutOfSupplyTurns = 0
+                };
+            }).ToArray()
+        };
     }
 
     public void Validate(

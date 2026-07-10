@@ -106,6 +106,29 @@ public class CommandValidatorTests
         CommandValidator.ValidateSubmitCommands(state, Side.Axis, request);
     }
 
+    [Fact]
+    public void ValidateSubmitCommands_rejects_later_command_when_ordered_budget_is_exhausted()
+    {
+        var state = CreateState();
+        state = state with
+        {
+            Resources = state.Resources.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Key == Side.Axis ? pair.Value with { CommandPoints = 1 } : pair.Value)
+        };
+        var request = new SubmitCommandsRequest(
+        [
+            new SubmitCommandRequest(1, new AttackCommandPayload("axis-armour", "base", ["frontline"])),
+            new SubmitCommandRequest(2, new ReconCommandPayload("axis-logistics", "base", "frontline"))
+        ]);
+
+        var exception = Assert.Throws<ApiValidationException>(() =>
+            CommandValidator.ValidateSubmitCommands(state, Side.Axis, request));
+
+        Assert.Contains("commands[1].command", exception.Errors.Keys);
+        Assert.Contains("command points", exception.Errors["commands[1].command"][0]);
+    }
+
     private static GameState CreateState()
     {
         return new GameState(

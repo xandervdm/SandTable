@@ -159,6 +159,7 @@ public sealed record CampaignTimelineSideMetricsResponse(
     decimal ForceStrengthPercent,
     int ActiveUnitCount,
     int DestroyedUnitCount,
+    int OutOfSupplyUnitCount,
     int ControlledVictoryPoints,
     decimal AverageSupply,
     decimal AverageMorale);

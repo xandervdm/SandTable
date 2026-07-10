@@ -883,6 +883,23 @@ function createUnitCounter(unit: UnitState, state: { selected: boolean; planned:
     statusText.position.set(width / 2 - 6, height / 2 - 6);
     counter.addChild(status, statusText);
   }
+  if (unit.supplyStatus === "OutOfSupply") {
+    const supplyBand = new Graphics()
+      .roundRect(-width / 2 + 2, height / 2 - 10, width - 4, 8, 2)
+      .fill({ color: 0x8d241b, alpha: 0.94 });
+    const supplyText = new Text({
+      text: "OOS",
+      style: {
+        fill: 0xffe2c9,
+        fontFamily: "Arial, Helvetica, sans-serif",
+        fontSize: 6,
+        fontWeight: "900"
+      },
+      anchor: 0.5
+    });
+    supplyText.position.set(0, height / 2 - 6);
+    counter.addChild(supplyBand, supplyText);
+  }
   return counter;
 }
 

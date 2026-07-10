@@ -53,7 +53,12 @@ const state = {
           : [])
   })),
   routes: map.routes,
-  units: units.units,
+  units: units.units.map((unit: Record<string, unknown>) => ({
+    ...unit,
+    supplyStatus: "InSupply",
+    outOfSupplyTurns: 0,
+    isEntrenched: false
+  })),
   reserves: [],
   victoryProgress: {},
   scenarioEventHistory: [],
@@ -215,6 +220,28 @@ test("Phase 4 command log groups actors, filters battles, and replays persisted 
   await expect(page.getByTestId("replay-controller")).toContainText("Turn 1 · 1/2");
 });
 
+test("Phase 5 exposes meaningful orders with projected command costs", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockApi(page);
+  await page.goto("/");
+
+  await expect(page.getByRole("button", { name: "Support", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Recon", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resupply", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Hold", exact: true }).click();
+  await expect(page.getByText("Entrench and restore morale")).toBeVisible();
+  await expect(page.getByText(/Cost: 0 CP/)).toBeVisible();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByText(/Entrench at/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Resupply", exact: true }).click();
+  await expect(page.getByText("Restore supply from the controlled network")).toBeVisible();
+  await expect(page.getByText(/Cost: 1 CP · 2 SUP/)).toBeVisible();
+  await page.getByRole("button", { name: "Update", exact: true }).click();
+  await expect(page.getByText(/Resupply at/)).toBeVisible();
+});
+
 async function mockApi(page: Page, options: { campaignEvents?: unknown[]; timeline?: unknown } = {}) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
@@ -291,6 +318,7 @@ async function mockApi(page: Page, options: { campaignEvents?: unknown[]; timeli
           forceStrengthPercent: maximumStrength === 0 ? 0 : Math.round(1000 * survivingStrength / maximumStrength) / 10,
           activeUnitCount: activeUnits.length,
           destroyedUnitCount: sideUnits.length - activeUnits.length,
+          outOfSupplyUnitCount: 0,
           controlledVictoryPoints: state.regions.filter((region: { owner: string }) => region.owner === side)
             .reduce((total: number, region: { victoryPoints: number }) => total + region.victoryPoints, 0),
           averageSupply: 0,
@@ -345,6 +373,7 @@ function createTimeline(points: Array<{
     forceStrengthPercent: percent,
     activeUnitCount: 5,
     destroyedUnitCount: percent < 100 ? 1 : 0,
+    outOfSupplyUnitCount: 0,
     controlledVictoryPoints: victoryPoints,
     averageSupply: 7,
     averageMorale: 8

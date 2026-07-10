@@ -39,6 +39,7 @@ import type {
   RegionState,
   ScenarioContent,
   StrategicTensionCard,
+  SubmitCommandPayload,
   TheatreSummary,
   UnitState
 } from "./runtime/types";
@@ -46,6 +47,9 @@ import type {
 const orderTypes: Array<{ value: OrderType; label: string }> = [
   { value: "Move", label: "Move" },
   { value: "Attack", label: "Attack" },
+  { value: "Support", label: "Support" },
+  { value: "Recon", label: "Recon" },
+  { value: "Resupply", label: "Resupply" },
   { value: "HoldPosition", label: "Hold" }
 ];
 
@@ -238,7 +242,7 @@ export function App() {
       return;
     }
 
-    if (orderType !== "HoldPosition" && !selectedTargetRegionId) {
+    if (!orderUsesCurrentRegion(orderType) && !selectedTargetRegionId) {
       setError("Select a valid target region before adding the order.");
       return;
     }
@@ -255,8 +259,8 @@ export function App() {
       unitCode: unitCode(unit),
       fromRegionId: unit.regionId,
       fromRegionName: fromRegion?.name ?? unit.regionId,
-      targetRegionId: orderType === "HoldPosition" ? null : selectedTargetRegionId,
-      targetRegionName: orderType === "HoldPosition" ? null : targetRegion?.name ?? selectedTargetRegionId
+      targetRegionId: orderUsesCurrentRegion(orderType) ? null : selectedTargetRegionId,
+      targetRegionName: orderUsesCurrentRegion(orderType) ? null : targetRegion?.name ?? selectedTargetRegionId
     };
 
     setPendingOrders((orders) => [
@@ -290,21 +294,7 @@ export function App() {
       if (currentTurnStatus === "Planning") {
         await client.submitCommands(
           activeCampaignUid,
-          pendingOrders.map((order, index) => ({
-            sequence: index + 1,
-            command: order.commandType === "Move" || order.commandType === "Attack"
-              ? {
-                  commandType: order.commandType,
-                  unitId: order.unitId,
-                  fromRegionId: order.fromRegionId,
-                  pathRegionIds: order.targetRegionId ? [order.targetRegionId] : []
-                }
-              : {
-                  commandType: "HoldPosition" as const,
-                  unitId: order.unitId,
-                  regionId: order.fromRegionId
-                }
-          }))
+          pendingOrders.map((order, index) => ({ sequence: index + 1, command: toSubmitCommand(order) }))
         );
         submittedOrders = true;
         setPendingOrders([]);
@@ -551,6 +541,7 @@ export function App() {
             selectedTargetRegionId={selectedTargetRegionId}
             validTargetIds={validTargetIds}
             campaignState={campaignState}
+            scenarioContent={scenarioContent}
             currentTurnStatus={currentTurnStatus}
             pendingOrders={pendingOrders}
             busy={busy}
@@ -685,6 +676,12 @@ function StatusPanel({
               <dd>{selectedUnit.defence}</dd>
               <dt>Supply</dt>
               <dd>{selectedUnit.supply}</dd>
+              <dt>Supply State</dt>
+              <dd className={selectedUnit.supplyStatus === "OutOfSupply" ? "supply-warning" : ""}>
+                {formatSupplyStatus(selectedUnit)}
+              </dd>
+              <dt>Posture</dt>
+              <dd>{selectedUnit.isEntrenched ? "Entrenched (+2)" : "Mobile"}</dd>
               <dt>Status</dt>
               <dd>{selectedUnit.status}</dd>
             </dl>
@@ -750,6 +747,7 @@ function OrderDock({
   selectedTargetRegionId,
   validTargetIds,
   campaignState,
+  scenarioContent,
   currentTurnStatus,
   pendingOrders,
   busy,
@@ -764,6 +762,7 @@ function OrderDock({
   selectedTargetRegionId: string | null;
   validTargetIds: string[];
   campaignState: CampaignStateResponse | null;
+  scenarioContent: ScenarioContent | null;
   currentTurnStatus: string;
   pendingOrders: PendingOrder[];
   busy: string | null;
@@ -782,13 +781,34 @@ function OrderDock({
       selectedUnit.status !== "Destroyed"
   );
   const existingOrder = pendingOrders.find((order) => order.unitId === selectedUnit?.id);
+  const commandBudget = resolveCommandBudget(campaignState);
+  const playerResources = resolvePlayerResources(campaignState);
+  const committedOrders = pendingOrders.filter((order) => order.unitId !== selectedUnit?.id);
+  const committedCost = sumOrderCosts(committedOrders.map((order) => calculateOrderCost(order, campaignState, scenarioContent)));
+  const draftOrder: PendingOrder | null = selectedUnit && campaignState
+    ? {
+        commandType: orderType,
+        unitId: selectedUnit.id,
+        unitName: selectedUnit.name,
+        unitCode: unitCode(selectedUnit),
+        fromRegionId: selectedUnit.regionId,
+        fromRegionName: campaignState.regions.find((region) => region.id === selectedUnit.regionId)?.name ?? selectedUnit.regionId,
+        targetRegionId: selectedTargetRegionId,
+        targetRegionName: campaignState.regions.find((region) => region.id === selectedTargetRegionId)?.name ?? selectedTargetRegionId
+      }
+    : null;
+  const draftCost = draftOrder ? calculateOrderCost(draftOrder, campaignState, scenarioContent) : zeroProjectedCost;
+  const canAffordDraft = committedCost.commandPoints + draftCost.commandPoints <= commandBudget
+    && committedCost.supplies + draftCost.supplies <= (playerResources?.supplies ?? 0)
+    && committedCost.fuel + draftCost.fuel <= (playerResources?.fuel ?? 0);
   const canAdd = Boolean(
     selectedUnit &&
       campaignState &&
       !busy &&
       currentTurnStatus === "Planning" &&
       selectedUnitIsPlayer &&
-      (orderType === "HoldPosition" || selectedTargetRegionId)
+      (orderUsesCurrentRegion(orderType) || selectedTargetRegionId) &&
+      canAffordDraft
   );
   const endTurnBlocker = resolveEndTurnBlocker(campaignState, currentTurnStatus, pendingOrders, busy);
   const canEndTurn = !endTurnBlocker;
@@ -802,7 +822,7 @@ function OrderDock({
             className={orderType === item.value ? "order-button selected" : "order-button"}
             onClick={() => onOrderChange(item.value)}
           >
-            {item.value === "Move" ? <ArrowRight size={20} /> : item.value === "Attack" ? <Crosshair size={20} /> : <Shield size={20} />}
+            {orderIcon(item.value)}
             {item.label}
           </button>
         ))}
@@ -820,13 +840,17 @@ function OrderDock({
               {!selectedUnitIsPlayer && selectedUnit
                 ? "Enemy unit selected"
                 : orderType === "HoldPosition"
-                  ? "Hold current position"
+                  ? "Entrench and restore morale"
+                  : orderType === "Resupply"
+                    ? "Restore supply from the controlled network"
                   : targetName
                     ? `Target: ${targetName}`
                     : `${validTargetIds.length} valid target${validTargetIds.length === 1 ? "" : "s"}`}
             </span>
             <small>
-              Turn status: {currentTurnStatus}
+              Cost: {draftCost.commandPoints} CP · {draftCost.supplies} SUP · {draftCost.fuel} FUEL
+              {` · ${Math.max(0, commandBudget - committedCost.commandPoints - draftCost.commandPoints)} CP left`}
+              <br />Turn status: {currentTurnStatus}
               {existingOrder ? " · order queued" : ""}
             </small>
           </>
@@ -842,7 +866,7 @@ function OrderDock({
         ) : (
           <>
             <div className="pending-header">
-              <strong>Pending Orders</strong>
+              <strong>Pending Orders · {sumOrderCosts(pendingOrders.map((order) => calculateOrderCost(order, campaignState, scenarioContent))).commandPoints}/{commandBudget} CP</strong>
               <button onClick={onClearOrders} disabled={pendingOrders.length === 0 || Boolean(busy)}>
                 Clear
               </button>
@@ -856,9 +880,7 @@ function OrderDock({
                     <div>
                       <strong>{order.unitCode} {order.unitName}</strong>
                       <span>
-                        {order.commandType === "HoldPosition"
-                          ? `Hold at ${order.fromRegionName}`
-                          : `${order.commandType} ${order.targetRegionName}`}
+                        {describePendingOrder(order)}
                       </span>
                     </div>
                     <button onClick={() => onRemoveOrder(order.unitId)} disabled={Boolean(busy)} aria-label={`Remove ${order.unitName} order`}>
@@ -968,6 +990,8 @@ function ProgressPanel({ timeline }: { timeline: CampaignTimeline | null }) {
           <span><strong>{enemy.survivingStrength}/{enemy.maximumStrength}</strong> Enemy strength</span>
           <span><strong>{player.controlledVictoryPoints}</strong> Your VP</span>
           <span><strong>{enemy.controlledVictoryPoints}</strong> Enemy VP</span>
+          <span><strong>{player.outOfSupplyUnitCount}</strong> Your OOS</span>
+          <span><strong>{enemy.outOfSupplyUnitCount}</strong> Enemy OOS</span>
         </div>
         {markers.length > 0 ? (
           <div className="timeline-markers" aria-label="Campaign timeline markers">
@@ -1198,8 +1222,96 @@ function formatCampaignResult(result: string | null | undefined) {
   return result?.trim() || "Complete";
 }
 
+interface ProjectedOrderCost {
+  commandPoints: number;
+  supplies: number;
+  fuel: number;
+}
+
+const zeroProjectedCost: ProjectedOrderCost = { commandPoints: 0, supplies: 0, fuel: 0 };
+
+function orderUsesCurrentRegion(orderType: OrderType) {
+  return orderType === "HoldPosition" || orderType === "Resupply";
+}
+
+function toSubmitCommand(order: PendingOrder): SubmitCommandPayload {
+  if (order.commandType === "Move" || order.commandType === "Attack") {
+    return {
+      commandType: order.commandType,
+      unitId: order.unitId,
+      fromRegionId: order.fromRegionId,
+      pathRegionIds: order.targetRegionId ? [order.targetRegionId] : []
+    };
+  }
+  if (order.commandType === "Support" || order.commandType === "Recon") {
+    return {
+      commandType: order.commandType,
+      unitId: order.unitId,
+      fromRegionId: order.fromRegionId,
+      targetRegionId: order.targetRegionId ?? order.fromRegionId
+    };
+  }
+  if (order.commandType === "Resupply") {
+    return { commandType: "Resupply", unitId: order.unitId, regionId: order.fromRegionId };
+  }
+  return { commandType: "HoldPosition", unitId: order.unitId, regionId: order.fromRegionId };
+}
+
+function calculateOrderCost(
+  order: PendingOrder,
+  state: CampaignStateResponse | null,
+  content: ScenarioContent | null
+): ProjectedOrderCost {
+  const definition = content?.scenario.commandCosts[order.commandType];
+  if (!definition) return zeroProjectedCost;
+  const route = state?.routes.find((candidate) =>
+    order.targetRegionId
+    && (candidate.fromRegionId === order.fromRegionId && candidate.toRegionId === order.targetRegionId
+      || candidate.fromRegionId === order.targetRegionId && candidate.toRegionId === order.fromRegionId));
+  const movementCost = order.commandType === "Move" || order.commandType === "Attack" ? route?.movementCost ?? 0 : 0;
+  const fuelReserve = state?.campaignModifiers.reduce((total, modifier) => total + (modifier.values.fuelReserve ?? 0), 0) ?? 0;
+  return {
+    commandPoints: definition.baseCommandPoints,
+    supplies: definition.fixedSupplies + definition.suppliesPerMovementCost * movementCost,
+    fuel: Math.max(0, definition.fixedFuel + definition.fuelPerMovementCost * movementCost - fuelReserve)
+  };
+}
+
+function sumOrderCosts(costs: ProjectedOrderCost[]): ProjectedOrderCost {
+  return costs.reduce((total, cost) => ({
+    commandPoints: total.commandPoints + cost.commandPoints,
+    supplies: total.supplies + cost.supplies,
+    fuel: total.fuel + cost.fuel
+  }), { ...zeroProjectedCost });
+}
+
+function resolvePlayerResources(state: CampaignStateResponse | null) {
+  return state ? state.resources[state.campaign.playerSide as "Axis" | "Allies"] : null;
+}
+
+function resolveCommandBudget(state: CampaignStateResponse | null) {
+  const resources = resolvePlayerResources(state);
+  const modifier = state?.campaignModifiers.reduce((total, item) => total + (item.values.commandPoints ?? 0), 0) ?? 0;
+  return Math.max(0, (resources?.commandPoints ?? 0) + modifier);
+}
+
+function describePendingOrder(order: PendingOrder) {
+  if (order.commandType === "HoldPosition") return `Entrench at ${order.fromRegionName}`;
+  if (order.commandType === "Resupply") return `Resupply at ${order.fromRegionName}`;
+  return `${order.commandType} ${order.targetRegionName}`;
+}
+
+function orderIcon(orderType: OrderType) {
+  if (orderType === "Move") return <ArrowRight size={17} />;
+  if (orderType === "Attack") return <Crosshair size={17} />;
+  if (orderType === "Support") return <Users size={17} />;
+  if (orderType === "Recon") return <Activity size={17} />;
+  if (orderType === "Resupply") return <Package size={17} />;
+  return <Shield size={17} />;
+}
+
 function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | null, state: CampaignStateResponse | null) {
-  if (!selectedUnit || !state || orderType === "HoldPosition") {
+  if (!selectedUnit || !state || orderUsesCurrentRegion(orderType)) {
     return [];
   }
 
@@ -1227,7 +1339,11 @@ function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | nul
     );
   }
 
-  return currentRegion.adjacentRegionIds;
+  if (orderType === "Support" || orderType === "Recon") {
+    return [currentRegion.id, ...currentRegion.adjacentRegionIds];
+  }
+
+  return [];
 }
 
 function unitCode(unit: UnitState) {
@@ -1243,6 +1359,16 @@ function unitCode(unit: UnitState) {
   return "AIR";
 }
 
+function formatSupplyStatus(unit: UnitState) {
+  if (unit.supplyStatus === "OutOfSupply") {
+    return `Out (${unit.outOfSupplyTurns}t)`;
+  }
+  if (unit.supplyStatus === "LowSupply") {
+    return "Low";
+  }
+  return "Connected";
+}
+
 function formatCampaignNameSuffix(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -1254,17 +1380,19 @@ function formatCampaignNameSuffix(date = new Date()) {
 }
 
 function describeVictoryCondition(content: ScenarioContent | null) {
-  const condition = content?.scenario.victoryRules.outcomes
-    .find((outcome) => outcome.result === "Victory")
-    ?.allOf[0];
-  if (!condition) {
+  const outcome = content?.scenario.victoryRules.outcomes.find((candidate) => candidate.result === "Victory");
+  if (!outcome) {
     return "Victory conditions are defined by the selected scenario.";
   }
-
-  if (condition.type === "ControlRegion") {
-    const region = content?.map.regions.find((item) => item.id === condition.regionId);
-    return `${condition.side ?? "Player"} must control ${region?.name ?? condition.regionId}.`;
-  }
-
-  return "Complete the selected scenario's victory conditions.";
+  const name = (regionId: string) => content?.map.regions.find((region) => region.id === regionId)?.name ?? regionId;
+  return outcome.allOf.map((condition) => {
+    if (condition.type === "ControlRegion" && condition.regionId) return `control ${name(condition.regionId)}`;
+    if (condition.type === "ControlAtLeast") {
+      const turns = (condition.consecutiveTurns ?? 1) > 1 ? ` for ${condition.consecutiveTurns} turns` : "";
+      return `control ${condition.requiredCount} of ${(condition.regionIds ?? []).map(name).join(", ")}${turns}`;
+    }
+    if (condition.type === "SupplyConnected") return `maintain supply to ${(condition.destinationRegionIds ?? []).map(name).join(", ")}`;
+    if (condition.type === "VictoryPointsAtLeast") return `hold ${condition.threshold} VP`;
+    return condition.type;
+  }).join("; ") + ".";
 }

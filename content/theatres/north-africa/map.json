@@ -140,19 +140,19 @@
     }
   ],
   "routes": [
-    { "id": "casablanca-algiers", "fromRegionId": "casablanca", "toRegionId": "algiers", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
-    { "id": "algiers-tunis", "fromRegionId": "algiers", "toRegionId": "tunis", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "casablanca-algiers", "fromRegionId": "casablanca", "toRegionId": "algiers", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "algiers-tunis", "fromRegionId": "algiers", "toRegionId": "tunis", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
     { "id": "algiers-kasserine", "fromRegionId": "algiers", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
     { "id": "tunis-kasserine", "fromRegionId": "tunis", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
-    { "id": "tunis-tripoli", "fromRegionId": "tunis", "toRegionId": "tripoli", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "tunis-tripoli", "fromRegionId": "tunis", "toRegionId": "tripoli", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
     { "id": "kasserine-fezzan", "fromRegionId": "kasserine-pass", "toRegionId": "fezzan-desert", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
     { "id": "tripoli-fezzan", "fromRegionId": "tripoli", "toRegionId": "fezzan-desert", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
-    { "id": "tripoli-benghazi", "fromRegionId": "tripoli", "toRegionId": "benghazi", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "tripoli-benghazi", "fromRegionId": "tripoli", "toRegionId": "benghazi", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
     { "id": "fezzan-benghazi", "fromRegionId": "fezzan-desert", "toRegionId": "benghazi", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
     { "id": "benghazi-gazala", "fromRegionId": "benghazi", "toRegionId": "gazala", "routeType": "DesertTrack", "movementCost": 1, "supplyCost": 1 },
-    { "id": "gazala-tobruk", "fromRegionId": "gazala", "toRegionId": "tobruk", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "gazala-tobruk", "fromRegionId": "gazala", "toRegionId": "tobruk", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
     { "id": "tobruk-el-alamein", "fromRegionId": "tobruk", "toRegionId": "el-alamein", "routeType": "CoastalRoad", "movementCost": 2, "supplyCost": 1 },
-    { "id": "el-alamein-alexandria", "fromRegionId": "el-alamein", "toRegionId": "alexandria", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "el-alamein-alexandria", "fromRegionId": "el-alamein", "toRegionId": "alexandria", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
     { "id": "alexandria-cairo", "fromRegionId": "alexandria", "toRegionId": "cairo", "routeType": "Railroad", "movementCost": 1, "supplyCost": 0 }
   ]
 }

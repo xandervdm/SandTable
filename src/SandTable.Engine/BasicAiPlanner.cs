@@ -19,6 +19,22 @@ public sealed class BasicAiPlanner
                 continue;
             }
 
+            if (unit.SupplyStatus == UnitSupplyStatus.OutOfSupply || unit.Supply <= 2)
+            {
+                commands.Add(SupplyTracer.Trace(startingState, aiSide, unit.RegionId).IsConnected
+                    ? new SubmittedCommand(
+                        commands.Count + 1,
+                        CommandSource.AI,
+                        aiSide,
+                        new ResupplyCommandPayload(unit.Id, unit.RegionId))
+                    : new SubmittedCommand(
+                        commands.Count + 1,
+                        CommandSource.AI,
+                        aiSide,
+                        new HoldPositionCommandPayload(unit.Id, unit.RegionId)));
+                continue;
+            }
+
             var adjacentEnemyUnit = activeUnits
                 .Where(target => target.Side != aiSide
                     && target.Side != Side.Neutral
@@ -66,7 +82,28 @@ public sealed class BasicAiPlanner
                     new MoveCommandPayload(unit.Id, unit.RegionId, [nextRegionId])));
         }
 
-        return commands;
+        var available = CommandEconomy.CreateTurnBudget(startingState, aiSide);
+        var affordableCommands = new List<SubmittedCommand>();
+        foreach (var command in commands)
+        {
+            var resequenced = command with { Sequence = affordableCommands.Count + 1 };
+            var cost = CommandEconomy.CalculateCost(startingState, resequenced);
+            if (CommandEconomy.CanAfford(available, cost))
+            {
+                available = CommandEconomy.Spend(available, cost);
+                affordableCommands.Add(resequenced);
+            }
+            else if (command.UnitId is not null && command.RegionId is not null)
+            {
+                affordableCommands.Add(new SubmittedCommand(
+                    affordableCommands.Count + 1,
+                    CommandSource.AI,
+                    aiSide,
+                    new HoldPositionCommandPayload(command.UnitId, command.RegionId)));
+            }
+        }
+
+        return affordableCommands;
     }
 
     private static string? FindNextStepTowardEnemy(

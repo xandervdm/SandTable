@@ -89,6 +89,28 @@ public class GameContentRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task Unsupported_campaign_modifier_reports_exact_content_path()
+    {
+        var fixture = CreateRenamedFixture();
+        try
+        {
+            var path = Path.Combine(fixture.TheatreRoot, "tension-cards.json");
+            var json = await File.ReadAllTextAsync(path);
+            await File.WriteAllTextAsync(path, json.Replace("\"supplyRisk\": 2", "\"unknownRule\": 2", StringComparison.Ordinal));
+            var repository = CreateRepository(fixture.ContentRoot);
+
+            var exception = await Assert.ThrowsAsync<ContentValidationException>(() =>
+                repository.LoadScenarioContentAsync("renamed-theatre", "renamed-scenario"));
+
+            Assert.Contains("tension-cards.json: cards[0].options[0].effects[2].values.unknownRule", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(fixture.Root, recursive: true);
+        }
+    }
+
     private static GameContentRepository CreateRepository(string? contentRoot = null)
     {
         var configuration = new ConfigurationManager();

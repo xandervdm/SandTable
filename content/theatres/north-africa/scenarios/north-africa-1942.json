@@ -33,21 +33,45 @@
   "victoryRules": {
     "outcomes": [
       {
-        "id": "player-controls-theatre-anchors",
+        "id": "player-operational-victory",
         "result": "Victory",
         "priority": 1,
         "allOf": [
-          { "type": "ControlRegion", "side": "Player", "regionId": "tunis" },
-          { "type": "ControlRegion", "side": "Player", "regionId": "cairo" }
+          {
+            "type": "ControlAtLeast",
+            "side": "Player",
+            "regionIds": ["tunis", "tobruk", "cairo"],
+            "requiredCount": 2,
+            "consecutiveTurns": 2
+          },
+          {
+            "type": "SupplyConnected",
+            "side": "Player",
+            "sourceRegionIds": ["tripoli", "alexandria", "cairo"],
+            "destinationRegionIds": ["tobruk"]
+          },
+          { "type": "VictoryPointsAtLeast", "side": "Player", "threshold": 32 }
         ]
       },
       {
-        "id": "enemy-controls-theatre-anchors",
+        "id": "enemy-operational-victory",
         "result": "Defeat",
         "priority": 2,
         "allOf": [
-          { "type": "ControlRegion", "side": "Enemy", "regionId": "tunis" },
-          { "type": "ControlRegion", "side": "Enemy", "regionId": "cairo" }
+          {
+            "type": "ControlAtLeast",
+            "side": "Enemy",
+            "regionIds": ["tunis", "tobruk", "cairo"],
+            "requiredCount": 2,
+            "consecutiveTurns": 4
+          },
+          {
+            "type": "SupplyConnected",
+            "side": "Enemy",
+            "sourceRegionIds": ["tripoli", "alexandria", "cairo"],
+            "destinationRegionIds": ["tobruk"]
+          },
+          { "type": "VictoryPointsAtLeast", "side": "Enemy", "threshold": 32 }
         ]
       },
       {

@@ -144,6 +144,17 @@ V2 condition types are:
 
 Side selectors are `Player`, `Enemy`, `Axis`, or `Allies`. Any condition may require `consecutiveTurns`; the Engine stores the counters needed to evaluate that requirement in `GameState.VictoryProgress`. Scenarios must define achievable outcomes for both sides and an explicit turn-limit result.
 
+### Phase 5 mechanics activation
+
+Phase 5 activates the V2 costs, routes, command variants, modifiers, and victory progress as deterministic Engine rules:
+
+- Each side receives its current command-point capacity at the start of resolution. Commands are considered in explicit sequence; accepted commands spend authored command points, supplies, and fuel, while later unaffordable commands are rejected. Command points refresh as turn capacity; supplies and fuel remain spent.
+- A controlled `Port` or `SupplyDepot` with positive `supplyValue` is a supply source. A destination is connected only through regions controlled by that side, and the lowest summed route `supplyCost` must not exceed the source's `supplyValue`.
+- Connected units recover supply. Disconnected units become `OutOfSupply`; repeated disconnected turns reduce supply and morale, then strength, and are emitted as persisted `Supply` events. `UnitState` stores `supplyStatus`, `outOfSupplyTurns`, and `isEntrenched` so the UI does not infer them.
+- `Support` contributes a deterministic combat bonus in its target region, `Recon` records enemy strength and grants an attack bonus, `Resupply` requires a connected route, and `HoldPosition` entrenches the unit and restores morale.
+- Campaign modifier keys are validated as content and applied by the Engine to command capacity/cost, combat, reconnaissance, supply recovery/risk, morale, movement tempo, or manpower as defined.
+- Ordered victory outcomes evaluate control, connected supply, VP, and turn conditions together. `consecutiveTurns` counters persist in `VictoryProgress`; the first fully satisfied outcome by priority ends the campaign.
+
 ### Reserves and deployment
 
 `units.json` is the catalogue of every unit template, including units that do not start on the map. Starting units are selected by scenario `startingUnitIds`.
@@ -195,6 +206,7 @@ Each timeline point contains snapshot UID, turn number, campaign date, and these
 - surviving and maximum strength;
 - `forceStrengthPercent`, calculated as `100 * sum(current strength) / sum(max strength)` across all scenario units for that side, including destroyed units as zero current strength;
 - active and destroyed unit counts;
+- out-of-supply unit count;
 - controlled victory points;
 - average supply and morale for active units;
 - persisted casualty, objective, deployment, tension, and victory markers for that turn.

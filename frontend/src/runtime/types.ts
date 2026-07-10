@@ -1,6 +1,7 @@
 export type Side = "Axis" | "Allies" | "Neutral";
 export type UnitType = "Infantry" | "Armour" | "Logistics" | "AirWing";
 export type UnitStatus = "Ready" | "Disrupted" | "Destroyed";
+export type UnitSupplyStatus = "InSupply" | "LowSupply" | "OutOfSupply";
 export type OrderType = "Move" | "Attack" | "HoldPosition" | "Support" | "Resupply" | "Recon" | "Deploy";
 export type RegionKind = "PrimaryObjective" | "Objective" | "OperationalPosition" | "EntryPoint";
 
@@ -128,7 +129,13 @@ export interface ScenarioDefinition {
         type: string;
         side?: "Player" | "Enemy" | "Axis" | "Allies" | null;
         regionId?: string | null;
+        regionIds?: string[] | null;
+        requiredCount?: number | null;
+        sourceRegionIds?: string[] | null;
+        destinationRegionIds?: string[] | null;
+        threshold?: number | null;
         turnNumber?: number | null;
+        consecutiveTurns?: number;
       }>;
     }>;
   };
@@ -215,6 +222,9 @@ export interface UnitState {
   morale: number;
   experience: number;
   status: UnitStatus;
+  supplyStatus: UnitSupplyStatus;
+  outOfSupplyTurns: number;
+  isEntrenched: boolean;
 }
 
 export interface TensionOption {
@@ -317,6 +327,7 @@ export interface CampaignTimelineSideMetrics {
   forceStrengthPercent: number;
   activeUnitCount: number;
   destroyedUnitCount: number;
+  outOfSupplyUnitCount: number;
   controlledVictoryPoints: number;
   averageSupply: number;
   averageMorale: number;

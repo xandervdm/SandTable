@@ -104,6 +104,10 @@ public static class CommandValidator
                     break;
                 case ResupplyCommandPayload resupply:
                     ValidateCurrentRegion(errors, prefix, resupply.RegionIdValue, unit, regions);
+                    if (unit is not null && !SupplyTracer.Trace(state, playerSide, unit.RegionId).IsConnected)
+                    {
+                        AddError(errors, $"{prefix}.command.regionId", $"Unit '{unit.Id}' has no controlled supply route and cannot resupply.");
+                    }
                     break;
                 default:
                     AddError(errors, $"{prefix}.command.commandType", $"Command payload '{payload.GetType().Name}' is not supported.");
@@ -111,7 +115,39 @@ public static class CommandValidator
             }
         }
 
+        ValidateBudget(errors, state, playerSide, request.Commands);
+
         ThrowIfInvalid(errors);
+    }
+
+    private static void ValidateBudget(
+        Dictionary<string, List<string>> errors,
+        GameState state,
+        Side side,
+        IReadOnlyList<SubmitCommandRequest> commands)
+    {
+        var available = CommandEconomy.CreateTurnBudget(state, side);
+        foreach (var indexed in commands
+            .Select((command, index) => (Command: command, Index: index))
+            .Where(item => item.Command?.Command is not null)
+            .OrderBy(item => item.Command.Sequence))
+        {
+            var submitted = new SubmittedCommand(
+                indexed.Command.Sequence,
+                CommandSource.Human,
+                side,
+                indexed.Command.Command);
+            var cost = CommandEconomy.CalculateCost(state, submitted);
+            if (!CommandEconomy.CanAfford(available, cost))
+            {
+                AddError(
+                    errors,
+                    $"commands[{indexed.Index}].command",
+                    $"Command sequence {submitted.Sequence} is unaffordable: insufficient {CommandEconomy.DescribeShortfall(available, cost)}.");
+                continue;
+            }
+            available = CommandEconomy.Spend(available, cost);
+        }
     }
 
     private static void ValidatePath(
@@ -154,9 +190,15 @@ public static class CommandValidator
             current = next;
         }
 
-        if (unit is not null && movementCost > unit.Movement)
+        var movementAllowance = unit is null
+            ? 0
+            : Math.Max(0,
+                unit.Movement
+                - CampaignModifierRules.Value(state, unit.Side, "tempoCost")
+                - (unit.SupplyStatus == UnitSupplyStatus.OutOfSupply ? 1 : 0));
+        if (unit is not null && movementCost > movementAllowance)
         {
-            AddError(errors, $"{prefix}.command.pathRegionIds", $"Path movement cost {movementCost} exceeds unit '{unit.Id}' allowance {unit.Movement}.");
+            AddError(errors, $"{prefix}.command.pathRegionIds", $"Path movement cost {movementCost} exceeds unit '{unit.Id}' effective allowance {movementAllowance}.");
         }
 
         if (isMove && unit is not null)

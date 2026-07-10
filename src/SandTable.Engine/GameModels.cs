@@ -24,6 +24,13 @@ public enum UnitStatus
     Destroyed
 }
 
+public enum UnitSupplyStatus
+{
+    InSupply,
+    LowSupply,
+    OutOfSupply
+}
+
 public enum OrderType
 {
     Move,
@@ -357,7 +364,10 @@ public sealed record UnitState(
     int Supply,
     int Morale,
     int Experience,
-    UnitStatus Status);
+    UnitStatus Status,
+    UnitSupplyStatus SupplyStatus = UnitSupplyStatus.InSupply,
+    int OutOfSupplyTurns = 0,
+    bool IsEntrenched = false);
 
 public sealed record ReserveState(
     string ReserveId,
