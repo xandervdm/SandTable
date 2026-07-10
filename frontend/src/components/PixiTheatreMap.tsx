@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Application, Assets, Container, Graphics, Sprite, Text } from "pixi.js";
+import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import type {
   CampaignStateResponse,
   MapDefinition,
@@ -19,6 +19,7 @@ interface PixiTheatreMapProps {
   validTargetIds: string[];
   plannedUnitIds: string[];
   onUnitSelect(unitId: string): void;
+  onStackSelect(regionId: string): void;
   onRegionSelect(regionId: string): void;
 }
 
@@ -51,6 +52,11 @@ interface ResolvedRegionDisplay {
   stackDirection: string;
 }
 
+interface LoadedBackgroundAsset {
+  url: string;
+  texture: Texture;
+}
+
 const UNIT_COUNTER_WIDTH = 40;
 const UNIT_COUNTER_HEIGHT = 34;
 const REGION_HIT_RADIUS_X = 44;
@@ -72,6 +78,7 @@ export function PixiTheatreMap({
   validTargetIds,
   plannedUnitIds,
   onUnitSelect,
+  onStackSelect,
   onRegionSelect
 }: PixiTheatreMapProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -79,6 +86,7 @@ export function PixiTheatreMap({
   const layersRef = useRef<PixiSceneLayers | null>(null);
   const latestPropsRef = useRef<PixiTheatreMapProps | null>(null);
   const staticWorldKeyRef = useRef<string | null>(null);
+  const backgroundAssetRef = useRef<LoadedBackgroundAsset | null>(null);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -111,7 +119,7 @@ export function PixiTheatreMap({
       setIsReady(true);
       const latestProps = latestPropsRef.current;
       if (latestProps) {
-        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef);
+        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef, backgroundAssetRef);
       }
     });
 
@@ -122,6 +130,7 @@ export function PixiTheatreMap({
       layersRef.current = null;
       latestPropsRef.current = null;
       staticWorldKeyRef.current = null;
+      backgroundAssetRef.current = null;
       if (initialized) {
         app.destroy(true, { children: true });
       }
@@ -139,14 +148,14 @@ export function PixiTheatreMap({
       const latestProps = latestPropsRef.current;
       const layers = layersRef.current;
       if (latestProps && layers) {
-        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef);
+        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef, backgroundAssetRef);
       }
     });
     resizeObserver.observe(host);
     const latestProps = latestPropsRef.current;
     const layers = layersRef.current;
     if (latestProps && layers) {
-      renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef);
+      renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef, backgroundAssetRef);
     }
 
     return () => resizeObserver.disconnect();
@@ -154,22 +163,27 @@ export function PixiTheatreMap({
 
   useEffect(() => {
     const backgroundUrl = display?.backgroundImage?.url;
+    backgroundAssetRef.current = null;
+    staticWorldKeyRef.current = null;
     if (!backgroundUrl || !isReady) {
       return;
     }
 
     let cancelled = false;
-    void Assets.load(backgroundUrl).then(() => {
+    void Assets.load<Texture>(backgroundUrl).then((texture) => {
       if (cancelled) {
         return;
       }
+
+      backgroundAssetRef.current = { url: backgroundUrl, texture };
+      staticWorldKeyRef.current = null;
 
       const host = hostRef.current;
       const app = appRef.current;
       const layers = layersRef.current;
       const latestProps = latestPropsRef.current;
       if (host && app && layers && latestProps) {
-        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef);
+        renderPixiScene(host, app, layers, latestProps, staticWorldKeyRef, backgroundAssetRef);
       }
     });
 
@@ -196,10 +210,11 @@ export function PixiTheatreMap({
       validTargetIds,
       plannedUnitIds,
       onUnitSelect,
+      onStackSelect,
       onRegionSelect
     };
     latestPropsRef.current = props;
-    renderPixiScene(host, app, layers, props, staticWorldKeyRef);
+    renderPixiScene(host, app, layers, props, staticWorldKeyRef, backgroundAssetRef);
   }, [
     isReady,
     map,
@@ -211,6 +226,7 @@ export function PixiTheatreMap({
     validTargetIds,
     plannedUnitIds,
     onUnitSelect,
+    onStackSelect,
     onRegionSelect
   ]);
 
@@ -254,17 +270,18 @@ function renderPixiScene(
   app: Application,
   layers: PixiSceneLayers,
   props: PixiTheatreMapProps,
-  staticWorldKeyRef: { current: string | null }
+  staticWorldKeyRef: { current: string | null },
+  backgroundAssetRef: { current: LoadedBackgroundAsset | null }
 ) {
   const transform = fitViewport(host, app, layers.world, props.map);
   const regionStates = new Map(props.state.regions.map((region) => [region.id, region]));
   const routes = resolvePlayableRoutes(props.map);
-  const staticWorldKey = resolveStaticWorldKey(props, regionStates);
+  const staticWorldKey = resolveStaticWorldKey(props, regionStates, backgroundAssetRef.current);
 
   if (staticWorldKeyRef.current !== staticWorldKey) {
     clearLayer(layers.background);
     clearLayer(layers.routes);
-    drawBackground(layers.background, props.map, props.display);
+    drawBackground(layers.background, props.map, props.display, backgroundAssetRef.current);
     drawRoutes(layers.routes, routes, props, { highlightsOnly: false });
     staticWorldKeyRef.current = staticWorldKey;
   }
@@ -289,12 +306,14 @@ function clearLayer(layer: Container) {
 
 function resolveStaticWorldKey(
   props: PixiTheatreMapProps,
-  regionStates: Map<string, { owner: Side; victoryPoints: number; features: string[] }>
+  regionStates: Map<string, { owner: Side; victoryPoints: number; features: string[] }>,
+  backgroundAsset: LoadedBackgroundAsset | null
 ) {
   return JSON.stringify({
     theatreId: props.map.theatreId,
     size: props.map.coordinateSystem,
     background: props.display?.backgroundImage?.url ?? null,
+    backgroundReady: backgroundAsset?.url === props.display?.backgroundImage?.url,
     routes: props.map.routes,
     owners: props.map.regions.map((region) => ({
       id: region.id,
@@ -318,12 +337,17 @@ function fitViewport(host: HTMLDivElement, app: Application, viewport: Container
   return { scale, x, y };
 }
 
-function drawBackground(viewport: Container, map: MapDefinition, display: MapDisplayDefinition | null | undefined) {
+function drawBackground(
+  viewport: Container,
+  map: MapDefinition,
+  display: MapDisplayDefinition | null | undefined,
+  backgroundAsset: LoadedBackgroundAsset | null
+) {
   const { width, height } = map.coordinateSystem;
   const backgroundUrl = display?.backgroundImage?.url;
 
-  if (backgroundUrl) {
-    const background = Sprite.from(backgroundUrl);
+  if (backgroundUrl && backgroundAsset?.url === backgroundUrl) {
+    const background = new Sprite(backgroundAsset.texture);
     background.x = 0;
     background.y = 0;
     background.width = width;
@@ -536,7 +560,8 @@ function drawRegionLabels(
     const stateRegion = regionStates.get(region.id);
     const source = props.selectedUnitRegionId === region.id;
     const target = props.selectedTargetRegionId === region.id;
-    const label = createRegionLabel(region, stateRegion?.victoryPoints ?? region.victoryPoints, source || target);
+    const victoryPoints = stateRegion?.victoryPoints ?? region.victoryPoints;
+    const label = createRegionLabel(region, victoryPoints, source || target, resolveLabelPriority(region, victoryPoints));
     const display = resolveRegionDisplay(props.display, region.id);
     const position = worldToScreen(
       transform,
@@ -579,7 +604,10 @@ function drawUnits(
       stackBackplates.position.set(stackPosition.x, stackPosition.y);
       stackBackplates.eventMode = "static";
       stackBackplates.cursor = "pointer";
-      stackBackplates.on("pointertap", () => props.onRegionSelect(region.id));
+      stackBackplates.on("pointertap", (event) => {
+        event.stopPropagation();
+        props.onStackSelect(region.id);
+      });
       unitLayer.addChild(stackBackplates);
     }
 
@@ -594,6 +622,9 @@ function drawUnits(
       counter.on("pointertap", (event) => {
         event.stopPropagation();
         props.onUnitSelect(unit.id);
+        if (units.length > 1) {
+          props.onStackSelect(region.id);
+        }
       });
       unitLayer.addChild(counter);
     }
@@ -604,6 +635,12 @@ function drawUnits(
         stackPosition.x + UNIT_COUNTER_WIDTH / 2 - 1,
         stackPosition.y - UNIT_COUNTER_HEIGHT / 2 + 1
       );
+      countBadge.eventMode = "static";
+      countBadge.cursor = "pointer";
+      countBadge.on("pointertap", (event) => {
+        event.stopPropagation();
+        props.onStackSelect(region.id);
+      });
       unitLayer.addChild(countBadge);
     }
   }
@@ -618,17 +655,24 @@ function worldToScreen(transform: ViewportTransform, x: number, y: number) {
   };
 }
 
-function createRegionLabel(region: RegionDefinition, victoryPoints: number, emphasized: boolean) {
+function createRegionLabel(
+  region: RegionDefinition,
+  victoryPoints: number,
+  emphasized: boolean,
+  priority: "primary" | "secondary" | "minor"
+) {
   const label = new Container();
+  const primary = priority === "primary";
+  const minor = priority === "minor";
   const name = new Text({
     text: splitRegionName(region.name).join("\n"),
     style: {
       align: "center",
       fill: 0x17120c,
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: 13,
-      fontWeight: "900",
-      lineHeight: 14,
+      fontSize: primary ? 14 : minor ? 10 : 12,
+      fontWeight: primary ? "900" : "800",
+      lineHeight: primary ? 15 : minor ? 11 : 13,
       stroke: { color: 0xf5e2b2, width: 1 }
     },
     anchor: 0.5
@@ -638,7 +682,7 @@ function createRegionLabel(region: RegionDefinition, victoryPoints: number, emph
     style: {
       fill: 0xffe7a0,
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: 10,
+      fontSize: primary ? 10 : 9,
       fontWeight: "900",
       stroke: { color: 0x24190e, width: 2 }
     },
@@ -646,17 +690,29 @@ function createRegionLabel(region: RegionDefinition, victoryPoints: number, emph
   });
 
   const backing = new Graphics();
-  const backingWidth = Math.max(76, name.width + 20);
-  const backingHeight = name.height + 14;
+  const backingWidth = Math.max(primary ? 80 : minor ? 58 : 70, name.width + (minor ? 12 : 20));
+  const backingHeight = name.height + (minor ? 8 : 14);
   backing
     .roundRect(-backingWidth / 2, -backingHeight / 2, backingWidth, backingHeight, 5)
-    .fill({ color: emphasized ? 0xffe2a0 : 0xf1d08a, alpha: emphasized ? 0.58 : 0.42 })
-    .stroke({ width: 1.2, color: 0x352614, alpha: emphasized ? 0.52 : 0.26 });
+    .fill({ color: emphasized ? 0xffe2a0 : 0xf1d08a, alpha: emphasized ? 0.62 : primary ? 0.46 : minor ? 0.24 : 0.34 })
+    .stroke({ width: primary || emphasized ? 1.2 : 0.8, color: 0x352614, alpha: emphasized ? 0.52 : primary ? 0.3 : 0.18 });
 
   name.position.set(0, -2);
   vp.position.set(0, backingHeight / 2 + 7);
   label.addChild(backing, name, vp);
   return label;
+}
+
+function resolveLabelPriority(region: RegionDefinition, victoryPoints: number): "primary" | "secondary" | "minor" {
+  if (victoryPoints >= 6 || region.features.includes("SupplyDepot")) {
+    return "primary";
+  }
+
+  if (victoryPoints <= 2 && region.features.length === 0) {
+    return "minor";
+  }
+
+  return "secondary";
 }
 
 function createUnitCounter(unit: UnitState, state: { selected: boolean; planned: boolean }) {

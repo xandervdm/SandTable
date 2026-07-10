@@ -5,6 +5,7 @@ import {
   CircleDot,
   Crosshair,
   Fuel,
+  Layers3,
   Loader2,
   MapPin,
   Package,
@@ -14,7 +15,8 @@ import {
   Shield,
   Star,
   Trash2,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import { HttpGameClient } from "./runtime/httpGameClient";
 import { PixiTheatreMap } from "./components/PixiTheatreMap";
@@ -24,9 +26,7 @@ import type {
   CampaignSummary,
   CampaignTurnSummary,
   GameClient,
-  MapDefinition,
   OrderType,
-  RegionDefinition,
   RegionState,
   ScenarioContent,
   StrategicTensionCard,
@@ -63,6 +63,7 @@ export function App() {
   const [turns, setTurns] = useState<CampaignTurnSummary[]>([]);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [selectedTargetRegionId, setSelectedTargetRegionId] = useState<string | null>(null);
+  const [expandedStackRegionId, setExpandedStackRegionId] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<OrderType>("Move");
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [busy, setBusy] = useState<string | null>("Loading command table");
@@ -118,6 +119,7 @@ export function App() {
       setTurns(campaignTurns);
       setActiveCampaignUid(campaign.campaignUid);
       setSelectedTargetRegionId(null);
+      setExpandedStackRegionId(null);
       setSelectedUnitId(resolveInitialUnit(state));
       setPendingOrders([]);
     } catch (err) {
@@ -292,6 +294,10 @@ export function App() {
     ? turns.find((turn) => turn.turnNumber === campaignState.turnNumber)
     : undefined;
   const currentTurnStatus = resolveCurrentTurnStatus(campaignState, currentTurn);
+  const expandedStackRegion = campaignState?.regions.find((region) => region.id === expandedStackRegionId) ?? null;
+  const expandedStackUnits = campaignState?.units.filter(
+    (unit) => unit.regionId === expandedStackRegionId && unit.status !== "Destroyed"
+  ) ?? [];
 
   function selectUnit(unitId: string) {
     const clickedUnit = campaignState?.units.find((unit) => unit.id === unitId);
@@ -395,6 +401,7 @@ export function App() {
                 validTargetIds={validTargetIds}
                 plannedUnitIds={pendingOrders.map((order) => order.unitId)}
                 onUnitSelect={selectUnit}
+                onStackSelect={setExpandedStackRegionId}
                 onRegionSelect={(regionId) => {
                   if (validTargetIds.includes(regionId)) {
                     setSelectedTargetRegionId(regionId);
@@ -412,6 +419,16 @@ export function App() {
                 </button>
               </div>
             )}
+            {expandedStackRegion && expandedStackUnits.length > 1 ? (
+              <StackSelector
+                regionName={expandedStackRegion.name}
+                units={expandedStackUnits}
+                selectedUnitId={selectedUnitId}
+                plannedUnitIds={pendingOrders.map((order) => order.unitId)}
+                onSelect={selectUnit}
+                onClose={() => setExpandedStackRegionId(null)}
+              />
+            ) : null}
           </div>
           <OrderDock
             orderType={orderType}
@@ -561,6 +578,53 @@ function StatusPanel({
         )}
       </Panel>
     </>
+  );
+}
+
+function StackSelector({
+  regionName,
+  units,
+  selectedUnitId,
+  plannedUnitIds,
+  onSelect,
+  onClose
+}: {
+  regionName: string;
+  units: UnitState[];
+  selectedUnitId: string | null;
+  plannedUnitIds: string[];
+  onSelect(unitId: string): void;
+  onClose(): void;
+}) {
+  return (
+    <section className="stack-selector" aria-label={`${regionName} unit stack`} data-testid="stack-selector">
+      <header>
+        <div>
+          <span><Layers3 size={14} /> Unit stack</span>
+          <strong>{regionName}</strong>
+        </div>
+        <button onClick={onClose} aria-label={`Close ${regionName} unit stack`}>
+          <X size={16} />
+        </button>
+      </header>
+      <div className="stack-selector-list">
+        {units.map((unit) => (
+          <button
+            key={unit.id}
+            className={unit.id === selectedUnitId ? "selected" : ""}
+            data-testid={`stack-unit-${unit.id}`}
+            onClick={() => onSelect(unit.id)}
+          >
+            <span className={`stack-unit-code ${unit.side.toLowerCase()}`}>{unitCode(unit)}</span>
+            <span>
+              <strong>{unit.name}</strong>
+              <small>{unit.type} · {unit.strength}/{unit.maxStrength} strength</small>
+            </span>
+            {plannedUnitIds.includes(unit.id) ? <em>Planned</em> : null}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -769,213 +833,6 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-const REGION_CARD_WIDTH = 98;
-const REGION_CARD_HEIGHT = 82;
-const UNIT_COUNTER_WIDTH = 26;
-const UNIT_COUNTER_HEIGHT = 24;
-
-function TheatreMap({
-  map,
-  state,
-  selectedUnitId,
-  selectedUnitRegionId,
-  selectedTargetRegionId,
-  validTargetIds,
-  plannedUnitIds,
-  onUnitSelect,
-  onRegionSelect
-}: {
-  map: MapDefinition;
-  state: CampaignStateResponse;
-  selectedUnitId: string | null;
-  selectedUnitRegionId: string | null;
-  selectedTargetRegionId: string | null;
-  validTargetIds: string[];
-  plannedUnitIds: string[];
-  onUnitSelect(unitId: string): void;
-  onRegionSelect(regionId: string): void;
-}) {
-  const regionDefinitions = new Map(map.regions.map((region) => [region.id, region]));
-  const regionStates = new Map(state.regions.map((region) => [region.id, region]));
-  const unitsByRegion = groupUnitsByRegion(state.units);
-  const playableRoutes = resolvePlayableRoutes(map);
-  const width = map.coordinateSystem.width;
-  const height = map.coordinateSystem.height;
-  const coastlineY = 148;
-
-  return (
-    <svg className="theatre-map" viewBox={`0 0 ${width} ${height}`} role="img">
-      <defs>
-        <filter id="paperNoise">
-          <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="4" seed="18" />
-          <feColorMatrix type="saturate" values="0" />
-          <feComponentTransfer>
-            <feFuncA type="table" tableValues="0 0.16" />
-          </feComponentTransfer>
-        </filter>
-        <linearGradient id="seaGradient" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#78919a" />
-          <stop offset="100%" stopColor="#b0b7ad" />
-        </linearGradient>
-        <radialGradient id="desertGlow" cx="50%" cy="58%" r="70%">
-          <stop offset="0%" stopColor="#e8c982" />
-          <stop offset="55%" stopColor="#cfaa61" />
-          <stop offset="100%" stopColor="#8e7446" />
-        </radialGradient>
-      </defs>
-
-      <rect width={width} height={height} fill="#1b211e" />
-      <path d={`M0 0 H${width} V${coastlineY + 34} C${width * 0.86} ${coastlineY + 8} ${width * 0.72} ${coastlineY + 50} ${width * 0.58} ${coastlineY + 18} C${width * 0.43} ${coastlineY - 16} ${width * 0.3} ${coastlineY + 34} ${width * 0.16} ${coastlineY + 12} C${width * 0.08} ${coastlineY} ${width * 0.04} ${coastlineY + 18} 0 ${coastlineY + 6} Z`} fill="url(#seaGradient)" />
-      <path d={`M0 ${coastlineY + 6} C${width * 0.04} ${coastlineY + 18} ${width * 0.08} ${coastlineY} ${width * 0.16} ${coastlineY + 12} C${width * 0.3} ${coastlineY + 34} ${width * 0.43} ${coastlineY - 16} ${width * 0.58} ${coastlineY + 18} C${width * 0.72} ${coastlineY + 50} ${width * 0.86} ${coastlineY + 8} ${width} ${coastlineY + 34} V${height} H0 Z`} fill="url(#desertGlow)" />
-      <rect width={width} height={height} filter="url(#paperNoise)" opacity="0.75" />
-      <path className="coastline" d={`M0 ${coastlineY + 6} C${width * 0.04} ${coastlineY + 18} ${width * 0.08} ${coastlineY} ${width * 0.16} ${coastlineY + 12} C${width * 0.3} ${coastlineY + 34} ${width * 0.43} ${coastlineY - 16} ${width * 0.58} ${coastlineY + 18} C${width * 0.72} ${coastlineY + 50} ${width * 0.86} ${coastlineY + 8} ${width} ${coastlineY + 34}`} />
-
-      <g className="terrain-marks">
-        <path d="M255 470 l18 -35 l18 35 M292 470 l15 -28 l15 28 M430 545 l18 -32 l18 32 M470 555 l14 -24 l14 24" />
-        <path d="M575 390 c42 -18 84 -12 126 7 M205 515 c42 -18 84 -12 126 7 M810 405 c45 -12 88 -6 130 16" />
-      </g>
-
-      <g className="routes">
-        {playableRoutes.map((route) => {
-          const routeSelected = Boolean(
-            selectedUnitRegionId &&
-              (route.from.id === selectedUnitRegionId || route.to.id === selectedUnitRegionId) &&
-              (validTargetIds.includes(route.from.id) || validTargetIds.includes(route.to.id))
-          );
-          const routeTarget = Boolean(
-            selectedTargetRegionId &&
-              (route.from.id === selectedTargetRegionId || route.to.id === selectedTargetRegionId) &&
-              (route.from.id === selectedUnitRegionId || route.to.id === selectedUnitRegionId)
-          );
-          return (
-            <line
-              key={`${route.from.id}-${route.to.id}`}
-              x1={route.from.position.x}
-              y1={route.from.position.y}
-              x2={route.to.position.x}
-              y2={route.to.position.y}
-              className={`${route.routeType.toLowerCase()} ${routeSelected ? "available" : ""} ${routeTarget ? "target" : ""}`}
-            />
-          );
-        })}
-      </g>
-
-      <g className="regions">
-        {map.regions.map((region) => {
-          const stateRegion = regionStates.get(region.id);
-          const owner = stateRegion?.owner ?? region.owner;
-          const valid = validTargetIds.includes(region.id);
-          const target = selectedTargetRegionId === region.id;
-          const source = selectedUnitRegionId === region.id;
-          return (
-            <g
-              key={region.id}
-              className={`region-node ${owner.toLowerCase()} ${source ? "source" : ""} ${valid ? "valid" : ""} ${target ? "target" : ""}`}
-              onClick={() => onRegionSelect(region.id)}
-            >
-              <rect
-                className="region-card"
-                x={region.position.x - REGION_CARD_WIDTH / 2}
-                y={region.position.y - REGION_CARD_HEIGHT / 2}
-                width={REGION_CARD_WIDTH}
-                height={REGION_CARD_HEIGHT}
-                rx="8"
-              />
-              <rect
-                className="owner-strip"
-                x={region.position.x - REGION_CARD_WIDTH / 2 + 6}
-                y={region.position.y - REGION_CARD_HEIGHT / 2 + 6}
-                width={REGION_CARD_WIDTH - 12}
-                height="4"
-                rx="2"
-              />
-              <RegionLabel region={region} />
-              <text className="vp-label" x={region.position.x - 42} y={region.position.y + 9}>
-                VP {stateRegion?.victoryPoints ?? region.victoryPoints}
-              </text>
-              <FeatureMarks region={region} />
-            </g>
-          );
-        })}
-      </g>
-
-      <g className="units">
-        {Array.from(unitsByRegion.entries()).map(([regionId, units]) => {
-          const region = regionDefinitions.get(regionId);
-          if (!region) {
-            return null;
-          }
-          const slots = resolveUnitSlotPositions(units.length);
-          return (
-            <g key={regionId} className="unit-stack">
-              {units.slice(0, slots.length).map((unit, index) => {
-                const slot = slots[index];
-                return (
-                  <g
-                    key={unit.id}
-                    className={`unit-counter ${unit.side.toLowerCase()} ${unit.id === selectedUnitId ? "selected" : ""} ${plannedUnitIds.includes(unit.id) ? "planned" : ""}`}
-                    transform={`translate(${region.position.x + slot.x} ${region.position.y + slot.y})`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onUnitSelect(unit.id);
-                    }}
-                  >
-                    <rect x={-UNIT_COUNTER_WIDTH / 2} y={-UNIT_COUNTER_HEIGHT / 2} width={UNIT_COUNTER_WIDTH} height={UNIT_COUNTER_HEIGHT} rx="4" />
-                    <text className="unit-type" y="-3">{unitCode(unit)}</text>
-                    <text className="unit-strength" y="10">{unit.strength}</text>
-                  </g>
-                );
-              })}
-              {units.length > slots.length ? (
-                <text className="stack-overflow" x={region.position.x + 39} y={region.position.y + 52}>
-                  +{units.length - slots.length}
-                </text>
-              ) : null}
-            </g>
-          );
-        })}
-      </g>
-    </svg>
-  );
-}
-
-function RegionLabel({ region }: { region: RegionDefinition }) {
-  const lines = splitRegionName(region.name);
-  const lineHeight = 12;
-  const y = region.position.y - 23 - ((lines.length - 1) * lineHeight) / 2;
-  return (
-    <text
-      className="region-label"
-      x={region.position.x}
-      y={y}
-    >
-      {lines.map((line, index) => (
-        <tspan key={line} x={region.position.x} dy={index === 0 ? 0 : lineHeight}>
-          {line}
-        </tspan>
-      ))}
-    </text>
-  );
-}
-
-function FeatureMarks({ region }: { region: RegionDefinition }) {
-  const marks = region.features.slice(0, 3);
-  const chipSize = 16;
-  const startX = region.position.x + 2;
-  const startY = region.position.y + 1;
-  return (
-    <g className="feature-marks">
-      {marks.map((feature, index) => (
-        <g key={feature} transform={`translate(${startX + index * (chipSize + 3)} ${startY})`}>
-          <title>{feature}</title>
-          <rect width={chipSize} height={chipSize} rx="3" />
-          <text x={chipSize / 2} y="11">{formatFeatureLabel(feature)}</text>
-        </g>
-      ))}
-    </g>
-  );
-}
-
 function resolveInitialUnit(state: CampaignStateResponse) {
   return state.units.find((unit) => unit.side === state.campaign.playerSide && unit.status !== "Destroyed")?.id ?? null;
 }
@@ -1067,105 +924,6 @@ function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | nul
   }
 
   return currentRegion.adjacentRegionIds;
-}
-
-function resolvePlayableRoutes(map: MapDefinition) {
-  const regionsById = new Map(map.regions.map((region) => [region.id, region]));
-  const routeTypesByEdge = new Map(map.routes.map((route) => [
-    edgeKey(route.fromRegionId, route.toRegionId),
-    route.routeType
-  ]));
-
-  return map.regions.flatMap((region) =>
-    region.adjacentRegionIds.flatMap((adjacentRegionId) => {
-      if (region.id > adjacentRegionId) {
-        return [];
-      }
-
-      const adjacentRegion = regionsById.get(adjacentRegionId);
-      if (!adjacentRegion) {
-        return [];
-      }
-
-      const key = edgeKey(region.id, adjacentRegionId);
-      return [{
-        from: region,
-        to: adjacentRegion,
-        routeType: routeTypesByEdge.get(key) ?? "OperationalRoute"
-      }];
-    })
-  );
-}
-
-function edgeKey(firstRegionId: string, secondRegionId: string) {
-  return [firstRegionId, secondRegionId].sort().join("::");
-}
-
-function resolveUnitSlotPositions(count: number) {
-  if (count <= 1) {
-    return [{ x: 0, y: 29 }];
-  }
-
-  if (count === 2) {
-    return [
-      { x: -15, y: 29 },
-      { x: 15, y: 29 }
-    ];
-  }
-
-  if (count === 3) {
-    return [
-      { x: -30, y: 29 },
-      { x: 0, y: 29 },
-      { x: 30, y: 29 }
-    ];
-  }
-
-  return [
-    { x: -15, y: 17 },
-    { x: 15, y: 17 },
-    { x: -15, y: 35 },
-    { x: 15, y: 35 }
-  ];
-}
-
-function splitRegionName(name: string) {
-  const words = name.split(" ");
-  if (words.length < 2 || name.length <= 11) {
-    return [name];
-  }
-
-  const midpoint = Math.ceil(words.length / 2);
-  return [
-    words.slice(0, midpoint).join(" "),
-    words.slice(midpoint).join(" ")
-  ];
-}
-
-function formatFeatureLabel(feature: string) {
-  if (feature === "SupplyDepot") {
-    return "D";
-  }
-
-  if (feature === "Airfield") {
-    return "A";
-  }
-
-  if (feature === "Fortified") {
-    return "F";
-  }
-
-  return feature.charAt(0);
-}
-
-function groupUnitsByRegion(units: UnitState[]) {
-  const grouped = new Map<string, UnitState[]>();
-  for (const unit of units.filter((item) => item.status !== "Destroyed")) {
-    const regionUnits = grouped.get(unit.regionId) ?? [];
-    regionUnits.push(unit);
-    grouped.set(unit.regionId, regionUnits);
-  }
-  return grouped;
 }
 
 function unitCode(unit: UnitState) {

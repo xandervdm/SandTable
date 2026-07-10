@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --config vite.config.js --host 127.0.0.1 --port 3000",
     "build": "tsc && vite build --config vite.config.js",
-    "preview": "vite preview --config vite.config.js --host 127.0.0.1 --port 3000"
+    "preview": "vite preview --config vite.config.js --host 127.0.0.1 --port 3000",
+    "test:phase1": "playwright test e2e/phase1.spec.ts",
+    "test:phase1:update": "playwright test e2e/phase1.spec.ts --update-snapshots"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
@@ -18,6 +20,7 @@
     "vite": "^6.0.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5"
   }
