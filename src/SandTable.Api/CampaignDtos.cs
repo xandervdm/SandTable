@@ -4,6 +4,7 @@ namespace SandTable.Api;
 
 public sealed record CreateCampaignRequest(
     string? Name,
+    string? TheatreId,
     string? ScenarioId,
     Side? PlayerSide,
     int? RandomSeed);
@@ -38,11 +39,15 @@ public sealed record ScenarioSummaryResponse(
     Side DefaultSide);
 
 public sealed record ScenarioContentResponse(
+    TheatreMetadataResponse Theatre,
     MapDefinition Map,
     ScenarioDefinition Scenario,
     UnitCatalog Units,
+    ReserveCatalog Reserves,
     DoctrineCatalog Doctrines,
     ScenarioEventCatalog Events,
+    TensionCardCatalog TensionCards,
+    MapAssetCatalogResponse Assets,
     MapDisplayDefinition? Display);
 
 public sealed record MapDisplayDefinition(

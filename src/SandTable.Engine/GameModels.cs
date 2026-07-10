@@ -173,6 +173,18 @@ public sealed record UnitDefinition(
     UnitStatus Status,
     IReadOnlyList<string>? DeploymentRegionIds = null);
 
+public sealed record ReserveCatalog(IReadOnlyList<ReserveDefinition> Reserves);
+
+public sealed record ReserveDefinition(
+    string ReserveId,
+    string UnitId,
+    Side Side,
+    int AvailableTurn,
+    Resources Cost,
+    IReadOnlyList<string> EligibleRegionIds,
+    IReadOnlyList<string>? RequiredRegionFeatures = null,
+    IReadOnlyList<string>? ScenarioIds = null);
+
 public sealed record DoctrineCatalog(IReadOnlyList<DoctrineDefinition> Doctrines);
 
 public sealed record DoctrineDefinition(

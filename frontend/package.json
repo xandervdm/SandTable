@@ -4,8 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "sync:theatre-assets": "node ../scripts/sync-theatre-assets.mjs",
+    "predev": "npm run sync:theatre-assets",
     "dev": "vite --config vite.config.js --host 127.0.0.1 --port 3000",
+    "prebuild": "npm run sync:theatre-assets",
     "build": "tsc && vite build --config vite.config.js",
+    "prepreview": "npm run sync:theatre-assets",
     "preview": "vite preview --config vite.config.js --host 127.0.0.1 --port 3000",
     "test:phase1": "playwright test e2e/phase1.spec.ts",
     "test:phase1:update": "playwright test e2e/phase1.spec.ts --update-snapshots"

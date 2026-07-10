@@ -1,0 +1,13 @@
+{
+  "assets": [
+    {
+      "assetId": "map-base",
+      "file": "assets/map-base.png",
+      "origin": "SandTable repository artwork",
+      "source": "Phase 1 North Africa theatre map",
+      "license": "Project asset",
+      "attribution": "SandTable",
+      "intendedUse": "Theatre map background"
+    }
+  ]
+}

@@ -27,6 +27,7 @@ Content-Type: application/json
 
 {
   "name": "Development North Africa Campaign",
+  "theatreId": "north-africa",
   "scenarioId": "north-africa-1942",
   "playerSide": "Axis"
 }

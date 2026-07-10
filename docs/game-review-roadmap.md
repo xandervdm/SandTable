@@ -66,16 +66,15 @@ For North Africa, expand the graph with a limited number of meaningful operation
 - Reserve definitions should include availability, cost, deployment rules, and eligible regions.
 - Deployment should require a controlled port, supply depot, or designated entry position and should normally be limited per turn.
 - The AI must use the same reserve and deployment rules.
-- `events.json` currently references `allied-armoured-reserve`, which is absent from `units.json`; current validation does not catch this.
+- Phase 2 adds the authored Allied armoured reserve and validates its unit, scenario, region, side, feature, and event references before campaign creation.
 - Scenario events are loaded but not integrated into the turn lifecycle.
 
 ### Theatre Portability
 
-- Campaign creation still hardcodes North Africa.
-- Scenario filename resolution special-cases `north-africa-1942`.
-- The frontend campaign name, heading, and new-campaign path are North-Africa-specific.
-- Documentation describes `map-display.json` and `map-assets.json`, while the implementation currently uses `display.json` and stores the raster under `frontend/public`.
-- Content validation does not fully validate coordinates, symmetric adjacency, route/adjacency agreement, display references, assets, scenario events, reserves, tension selectors, or all cross-catalogue IDs.
+- Phase 2 removes theatre/scenario defaults from campaign creation and makes discovery manifest-driven.
+- React campaign setup now submits the selected theatre, scenario, and playable side; headings and victory copy come from content.
+- Authored assets now live in the theatre package and are validated and copied to generated frontend public output by the frontend development/build lifecycle.
+- Package loading validates coordinates, symmetric adjacency, route agreement, scenarios, units, reserves, events, tension selectors/effects, display metadata, declared assets, and cross-catalogue IDs with file/field/ID diagnostics.
 
 ## Target Theatre Package
 
@@ -146,6 +145,8 @@ Exit gate:
 - The browser console has no Pixi errors or warnings.
 
 ### Phase 2 - Theatre Contract and Content Validation
+
+Status: **Complete — 10 July 2026.** The North Africa package uses the canonical manifest and filenames, authored assets sync from content, campaign setup is theatre-driven, and validation coverage includes a renamed fixture plus precise invalid-reference diagnostics.
 
 1. Add the theatre manifest and align filenames with the chosen package convention.
 2. Move authored assets into the theatre package and add the defined serving/copy step.

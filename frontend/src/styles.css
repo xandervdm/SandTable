@@ -391,6 +391,33 @@ button:disabled {
   font-size: 18px;
 }
 
+.campaign-setup-controls {
+  width: min(680px, calc(100% - 32px));
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 0.8fr;
+  gap: 10px;
+  text-align: left;
+}
+
+.campaign-setup-controls label {
+  display: grid;
+  gap: 5px;
+  color: #bdb397;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.campaign-setup-controls select {
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  color: #eee8d8;
+  background: #191b19;
+  border: 1px solid #6c634f;
+  border-radius: 4px;
+}
+
 .stack-selector {
   position: absolute;
   z-index: 3;

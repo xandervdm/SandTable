@@ -13,3 +13,4 @@ playwright-report/
 node_modules/
 dist/
 *.log
+frontend/public/theatres/

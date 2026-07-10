@@ -68,13 +68,21 @@ public static class SandTableEndpoints
             [FromServices] CampaignService service,
             CancellationToken cancellationToken) =>
         {
-            var campaign = await service.CreateCampaignAsync(request, cancellationToken);
-            return Results.Created($"/api/campaigns/{campaign.Campaign.CampaignUid}", campaign);
+            try
+            {
+                var campaign = await service.CreateCampaignAsync(request, cancellationToken);
+                return Results.Created($"/api/campaigns/{campaign.Campaign.CampaignUid}", campaign);
+            }
+            catch (ApiValidationException exception)
+            {
+                return ApiProblemResults.From(exception);
+            }
         })
             .WithName("CreateCampaign")
             .WithTags("Campaigns")
             .Accepts<CreateCampaignRequest>("application/json")
             .Produces<CampaignDetailResponse>(StatusCodes.Status201Created)
+            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         group.MapGet("/campaigns", async ([FromServices] CampaignService service, CancellationToken cancellationToken) =>

@@ -58,6 +58,25 @@ export interface MapDisplayDefinition {
   regions: Record<string, RegionDisplayDefinition>;
 }
 
+export interface TheatreMetadata {
+  contractVersion: string;
+  theatreId: string;
+  name: string;
+  defaultScenarioId: string;
+}
+
+export interface MapAssetDefinition {
+  assetId: string;
+  file: string;
+  url: string;
+  origin?: string | null;
+  source?: string | null;
+  createdDate?: string | null;
+  license?: string | null;
+  attribution?: string | null;
+  intendedUse?: string | null;
+}
+
 export interface ScenarioSummary {
   scenarioId: string;
   theatreId: string;
@@ -116,11 +135,15 @@ export interface UnitDefinition {
 }
 
 export interface ScenarioContent {
+  theatre: TheatreMetadata;
   map: MapDefinition;
   scenario: ScenarioDefinition;
   units: { units: UnitDefinition[] };
+  reserves: { reserves: unknown[] };
   doctrines: unknown;
   events: unknown;
+  tensionCards: unknown;
+  assets: { assets: MapAssetDefinition[] };
   display?: MapDisplayDefinition | null;
 }
 
@@ -278,8 +301,9 @@ export interface GameClient {
   listCampaigns(): Promise<CampaignSummary[]>;
   createCampaign(input: {
     name?: string;
-    scenarioId?: string;
-    playerSide?: Side;
+    theatreId: string;
+    scenarioId: string;
+    playerSide: Exclude<Side, "Neutral">;
     randomSeed?: number;
   }): Promise<CampaignDetail>;
   loadCampaignState(campaignUid: string): Promise<CampaignStateResponse>;

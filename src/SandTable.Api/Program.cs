@@ -39,6 +39,16 @@ app.UseExceptionHandler(errorApp =>
             return;
         }
 
+        if (exception is ContentValidationException)
+        {
+            await Results.Problem(
+                    title: "Invalid theatre content",
+                    detail: exception.Message,
+                    statusCode: StatusCodes.Status500InternalServerError)
+                .ExecuteAsync(context);
+            return;
+        }
+
         await Results.Problem(
                 title: "Unexpected API error",
                 detail: "SandTable could not complete the request.",

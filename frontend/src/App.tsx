@@ -55,6 +55,9 @@ export function App() {
   const client = useMemo<GameClient>(() => new HttpGameClient(), []);
   const [apiHealthy, setApiHealthy] = useState(false);
   const [theatres, setTheatres] = useState<TheatreSummary[]>([]);
+  const [selectedTheatreId, setSelectedTheatreId] = useState("");
+  const [selectedScenarioId, setSelectedScenarioId] = useState("");
+  const [selectedPlayerSide, setSelectedPlayerSide] = useState<"Axis" | "Allies">("Axis");
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [activeCampaignUid, setActiveCampaignUid] = useState<string | null>(null);
   const [scenarioContent, setScenarioContent] = useState<ScenarioContent | null>(null);
@@ -92,6 +95,9 @@ export function App() {
       } else if (loadedTheatres[0]?.scenarios[0]) {
         const theatre = loadedTheatres[0];
         const scenario = theatre.scenarios[0];
+        setSelectedTheatreId(theatre.theatreId);
+        setSelectedScenarioId(scenario.scenarioId);
+        setSelectedPlayerSide(scenario.defaultSide === "Allies" ? "Allies" : "Axis");
         const content = await client.loadScenarioContent(theatre.theatreId, scenario.scenarioId);
         setScenarioContent(content);
       }
@@ -114,6 +120,9 @@ export function App() {
         client.loadTurns(campaign.campaignUid)
       ]);
       setScenarioContent(content);
+      setSelectedTheatreId(campaign.theatreId);
+      setSelectedScenarioId(campaign.scenarioId);
+      setSelectedPlayerSide(campaign.playerSide === "Allies" ? "Allies" : "Axis");
       setCampaignState(state);
       setEvents(campaignEvents);
       setTurns(campaignTurns);
@@ -140,9 +149,9 @@ export function App() {
   }
 
   async function createCampaign() {
-    const theatre = theatres[0];
-    const scenario = theatre?.scenarios[0];
-    if (!scenario) {
+    const theatre = theatres.find((item) => item.theatreId === selectedTheatreId);
+    const scenario = theatre?.scenarios.find((item) => item.scenarioId === selectedScenarioId);
+    if (!theatre || !scenario) {
       setError("No theatre scenario is available.");
       return;
     }
@@ -151,15 +160,43 @@ export function App() {
       setBusy("Creating campaign");
       setError(null);
       const detail = await client.createCampaign({
-        name: `North Africa Campaign ${formatCampaignNameSuffix()}`,
+        name: `${scenario.name} ${formatCampaignNameSuffix()}`,
+        theatreId: theatre.theatreId,
         scenarioId: scenario.scenarioId,
-        playerSide: scenario.defaultSide
+        playerSide: selectedPlayerSide
       });
       const nextCampaigns = await client.listCampaigns();
       setCampaigns(nextCampaigns);
       await loadCampaign(detail.campaign);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create campaign.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function selectScenario(theatreId: string, scenarioId: string) {
+    const theatre = theatres.find((item) => item.theatreId === theatreId);
+    const scenario = theatre?.scenarios.find((item) => item.scenarioId === scenarioId);
+    if (!theatre || !scenario) {
+      return;
+    }
+
+    try {
+      setBusy("Loading scenario");
+      setError(null);
+      const content = await client.loadScenarioContent(theatreId, scenarioId);
+      setSelectedTheatreId(theatreId);
+      setSelectedScenarioId(scenarioId);
+      setSelectedPlayerSide(scenario.defaultSide === "Allies" ? "Allies" : "Axis");
+      setScenarioContent(content);
+      setCampaignState(null);
+      setActiveCampaignUid(null);
+      setEvents([]);
+      setTurns([]);
+      setPendingOrders([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load scenario.");
     } finally {
       setBusy(null);
     }
@@ -298,6 +335,8 @@ export function App() {
   const expandedStackUnits = campaignState?.units.filter(
     (unit) => unit.regionId === expandedStackRegionId && unit.status !== "Destroyed"
   ) ?? [];
+  const selectedTheatre = theatres.find((theatre) => theatre.theatreId === selectedTheatreId);
+  const selectedScenario = selectedTheatre?.scenarios.find((scenario) => scenario.scenarioId === selectedScenarioId);
 
   function selectUnit(unitId: string) {
     const clickedUnit = campaignState?.units.find((unit) => unit.id === unitId);
@@ -334,8 +373,8 @@ export function App() {
             <CircleDot size={22} />
           </button>
           <div>
-            <span className="overline">North Africa Campaign</span>
-            <strong>{activeCampaign?.currentCampaignDate ?? "1942-06-12"}</strong>
+            <span className="overline">{scenarioContent?.scenario.name ?? activeCampaign?.name ?? "SandTable Campaign"}</span>
+            <strong>{activeCampaign?.currentCampaignDate ?? scenarioContent?.scenario.startDate ?? "Awaiting scenario"}</strong>
           </div>
         </div>
 
@@ -357,6 +396,11 @@ export function App() {
               const campaign = campaigns.find((item) => item.campaignUid === event.target.value);
               if (campaign) {
                 void loadCampaign(campaign);
+              } else {
+                setCampaignState(null);
+                setActiveCampaignUid(null);
+                setEvents([]);
+                setTurns([]);
               }
             }}
           >
@@ -412,10 +456,53 @@ export function App() {
               <div className="empty-map">
                 <MapPin size={32} />
                 <strong>Command table awaiting campaign</strong>
-                <span>Start a campaign to load live map state.</span>
+                <span>Choose a theatre, scenario, and command side.</span>
+                <div className="campaign-setup-controls">
+                  <label>
+                    <span>Theatre</span>
+                    <select
+                      aria-label="Theatre"
+                      value={selectedTheatreId}
+                      onChange={(event) => {
+                        const theatre = theatres.find((item) => item.theatreId === event.target.value);
+                        const scenario = theatre?.scenarios[0];
+                        if (theatre && scenario) {
+                          void selectScenario(theatre.theatreId, scenario.scenarioId);
+                        }
+                      }}
+                    >
+                      {theatres.map((theatre) => (
+                        <option key={theatre.theatreId} value={theatre.theatreId}>{theatre.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Scenario</span>
+                    <select
+                      aria-label="Scenario"
+                      value={selectedScenarioId}
+                      onChange={(event) => void selectScenario(selectedTheatreId, event.target.value)}
+                    >
+                      {selectedTheatre?.scenarios.map((scenario) => (
+                        <option key={scenario.scenarioId} value={scenario.scenarioId}>{scenario.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Side</span>
+                    <select
+                      aria-label="Player side"
+                      value={selectedPlayerSide}
+                      onChange={(event) => setSelectedPlayerSide(event.target.value as "Axis" | "Allies")}
+                    >
+                      <option value="Axis">Axis</option>
+                      <option value="Allies">Allies</option>
+                    </select>
+                  </label>
+                </div>
                 <button className="primary-button" onClick={createCampaign} disabled={Boolean(busy) || theatres.length === 0}>
                   <Plus size={16} />
-                  Start North Africa
+                  Start {selectedTheatre?.name ?? "Campaign"}
                 </button>
               </div>
             )}
@@ -529,9 +616,7 @@ function StatusPanel({
       </Panel>
 
       <Panel title="Victory Condition">
-        <p>
-          Capture Cairo and keep the supply chain alive across the desert.
-        </p>
+        <p>{describeVictoryCondition(scenarioContent)}</p>
       </Panel>
 
       {campaignState?.isComplete ? (
@@ -947,4 +1032,18 @@ function formatCampaignNameSuffix(date = new Date()) {
   const minute = String(date.getMinutes()).padStart(2, "0");
   const second = String(date.getSeconds()).padStart(2, "0");
   return `${year}${month}${day}-${hour}${minute}${second}`;
+}
+
+function describeVictoryCondition(content: ScenarioContent | null) {
+  const condition = content?.scenario.victoryConditions[0];
+  if (!condition) {
+    return "Victory conditions are defined by the selected scenario.";
+  }
+
+  if (condition.type === "ControlRegion") {
+    const region = content?.map.regions.find((item) => item.id === condition.regionId);
+    return `${condition.requiredOwner} must control ${region?.name ?? condition.regionId}.`;
+  }
+
+  return "Complete the selected scenario's victory conditions.";
 }

@@ -60,7 +60,13 @@ export class HttpGameClient implements GameClient {
     return request<CampaignSummary[]>("/api/campaigns");
   }
 
-  createCampaign(input: { name?: string; scenarioId?: string; playerSide?: Side; randomSeed?: number }) {
+  createCampaign(input: {
+    name?: string;
+    theatreId: string;
+    scenarioId: string;
+    playerSide: Exclude<Side, "Neutral">;
+    randomSeed?: number;
+  }) {
     return request<CampaignDetail>("/api/campaigns", {
       method: "POST",
       body: JSON.stringify(input)

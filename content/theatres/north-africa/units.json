@@ -101,6 +101,23 @@
       "experience": 5,
       "status": "Ready",
       "deploymentRegionIds": ["alexandria", "cairo", "el-alamein"]
+    },
+    {
+      "id": "allied-armoured-reserve",
+      "name": "Allied Armoured Reserve",
+      "side": "Allies",
+      "type": "Armour",
+      "regionId": "el-alamein",
+      "strength": 8,
+      "maxStrength": 8,
+      "movement": 3,
+      "attack": 5,
+      "defence": 5,
+      "supply": 8,
+      "morale": 7,
+      "experience": 5,
+      "status": "Ready",
+      "deploymentRegionIds": ["el-alamein", "alexandria"]
     }
   ]
 }

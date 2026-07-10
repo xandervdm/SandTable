@@ -142,8 +142,13 @@
   "routes": [
     { "fromRegionId": "casablanca", "toRegionId": "algiers", "routeType": "CoastalRoad" },
     { "fromRegionId": "algiers", "toRegionId": "tunis", "routeType": "CoastalRoad" },
+    { "fromRegionId": "algiers", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute" },
+    { "fromRegionId": "tunis", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute" },
     { "fromRegionId": "tunis", "toRegionId": "tripoli", "routeType": "CoastalRoad" },
+    { "fromRegionId": "kasserine-pass", "toRegionId": "fezzan-desert", "routeType": "DesertTrack" },
+    { "fromRegionId": "tripoli", "toRegionId": "fezzan-desert", "routeType": "DesertTrack" },
     { "fromRegionId": "tripoli", "toRegionId": "benghazi", "routeType": "CoastalRoad" },
+    { "fromRegionId": "fezzan-desert", "toRegionId": "benghazi", "routeType": "DesertTrack" },
     { "fromRegionId": "benghazi", "toRegionId": "gazala", "routeType": "DesertTrack" },
     { "fromRegionId": "gazala", "toRegionId": "tobruk", "routeType": "CoastalRoad" },
     { "fromRegionId": "tobruk", "toRegionId": "el-alamein", "routeType": "CoastalRoad" },

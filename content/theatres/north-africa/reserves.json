@@ -1,0 +1,20 @@
+{
+  "reserves": [
+    {
+      "reserveId": "allied-armoured-reserve",
+      "unitId": "allied-armoured-reserve",
+      "side": "Allies",
+      "availableTurn": 6,
+      "cost": {
+        "supplies": 0,
+        "manpower": 0,
+        "fuel": 0,
+        "industry": 0,
+        "commandPoints": 0
+      },
+      "eligibleRegionIds": ["el-alamein", "alexandria"],
+      "requiredRegionFeatures": [],
+      "scenarioIds": ["north-africa-1942"]
+    }
+  ]
+}

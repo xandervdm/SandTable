@@ -21,9 +21,41 @@ public sealed class CampaignService(
         CreateCampaignRequest request,
         CancellationToken cancellationToken)
     {
-        var scenarioId = string.IsNullOrWhiteSpace(request.ScenarioId) ? "north-africa-1942" : request.ScenarioId;
-        var content = await contentRepository.LoadAsync("north-africa", scenarioId, cancellationToken);
-        var playerSide = request.PlayerSide ?? content.Scenario.DefaultSide;
+        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(request.TheatreId))
+        {
+            errors["theatreId"] = ["Theatre ID is required."];
+        }
+        if (string.IsNullOrWhiteSpace(request.ScenarioId))
+        {
+            errors["scenarioId"] = ["Scenario ID is required."];
+        }
+        if (request.PlayerSide is not (Side.Axis or Side.Allies))
+        {
+            errors["playerSide"] = ["Player side must be Axis or Allies."];
+        }
+        if (errors.Count > 0)
+        {
+            throw new ApiValidationException("Invalid campaign", "Campaign creation requires an explicit theatre, scenario, and player side.", errors);
+        }
+
+        GameContentBundle content;
+        try
+        {
+            content = await contentRepository.LoadAsync(request.TheatreId!, request.ScenarioId!, cancellationToken);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            throw new ApiValidationException("Invalid campaign", $"Theatre '{request.TheatreId}' was not found.",
+                new Dictionary<string, string[]> { ["theatreId"] = ["The selected theatre was not found."] });
+        }
+        catch (FileNotFoundException)
+        {
+            throw new ApiValidationException("Invalid campaign", $"Scenario '{request.ScenarioId}' was not found in theatre '{request.TheatreId}'.",
+                new Dictionary<string, string[]> { ["scenarioId"] = ["The selected scenario was not found in this theatre."] });
+        }
+
+        var playerSide = request.PlayerSide.Value;
         var seed = request.RandomSeed ?? RandomNumberGenerator.GetInt32(1, int.MaxValue);
         var initialState = scenarioFactory.CreateInitialState(content.Map, content.Scenario, content.Units, playerSide, seed);
 

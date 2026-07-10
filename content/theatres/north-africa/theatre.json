@@ -1,0 +1,22 @@
+{
+  "contractVersion": "sandtable-content-v2",
+  "theatreId": "north-africa",
+  "name": "North Africa",
+  "defaultScenarioId": "north-africa-1942",
+  "files": {
+    "map": "map.json",
+    "display": "map-display.json",
+    "assets": "map-assets.json",
+    "units": "units.json",
+    "reserves": "reserves.json",
+    "doctrines": "doctrines.json",
+    "events": "events.json",
+    "tensionCards": "tension-cards.json"
+  },
+  "scenarios": [
+    {
+      "scenarioId": "north-africa-1942",
+      "file": "scenarios/north-africa-1942.json"
+    }
+  ]
+}

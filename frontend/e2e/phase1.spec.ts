@@ -5,11 +5,22 @@ import path from "node:path";
 const contentRoot = path.resolve(process.cwd(), "..", "content", "theatres", "north-africa");
 const readContent = (fileName: string) => JSON.parse(readFileSync(path.join(contentRoot, fileName), "utf8"));
 const map = readContent("map.json");
-const display = readContent("display.json");
-const scenario = readContent("scenario-1942.json");
+const authoredDisplay = readContent("map-display.json");
+const display = {
+  ...authoredDisplay,
+  backgroundImage: {
+    url: "/theatres/north-africa/assets/map-base.png",
+    fit: authoredDisplay.backgroundImage.fit
+  }
+};
+const scenario = readContent("scenarios/north-africa-1942.json");
 const units = readContent("units.json");
+const reserves = readContent("reserves.json");
 const doctrines = readContent("doctrines.json");
 const events = readContent("events.json");
+const tensionCards = readContent("tension-cards.json");
+const assets = readContent("map-assets.json");
+const manifest = readContent("theatre.json");
 
 const campaign = {
   campaignUid: "phase-1-regression",
@@ -60,7 +71,7 @@ for (const viewport of viewports) {
     await mockApi(page);
 
     const backgroundResponse = page.waitForResponse((response) =>
-      response.url().endsWith("/theatres/north-africa/north-africa-theatre.png") && response.ok()
+      response.url().endsWith("/theatres/north-africa/assets/map-base.png") && response.ok()
     );
     await page.goto("/");
     await backgroundResponse;
@@ -79,6 +90,8 @@ for (const viewport of viewports) {
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
     }
 
+    // Chromium/WebGL can return a partially composited first capture on Windows.
+    await page.screenshot({ animations: "disabled" });
     const screenshot = await page.screenshot({ animations: "disabled" });
     expect(screenshot).toMatchSnapshot(`phase-1-${viewport.width}x${viewport.height}.png`, {
       maxDiffPixelRatio: 0.01
@@ -132,7 +145,30 @@ async function mockApi(page: Page) {
       return;
     }
     if (pathname === `/api/content/theatres/${map.theatreId}/scenarios/${scenario.scenarioId}`) {
-      await route.fulfill({ json: { map, display, scenario, units, doctrines, events } });
+      await route.fulfill({
+        json: {
+          theatre: {
+            contractVersion: manifest.contractVersion,
+            theatreId: manifest.theatreId,
+            name: manifest.name,
+            defaultScenarioId: manifest.defaultScenarioId
+          },
+          map,
+          display,
+          scenario,
+          units,
+          reserves,
+          doctrines,
+          events,
+          tensionCards,
+          assets: {
+            assets: assets.assets.map((asset: { file: string }) => ({
+              ...asset,
+              url: `/theatres/${manifest.theatreId}/${asset.file}`
+            }))
+          }
+        }
+      });
       return;
     }
     if (pathname === "/api/campaigns") {

@@ -29,6 +29,7 @@ public class DockerPostgresSmokeTests
         var campaign = await service.CreateCampaignAsync(
             new CreateCampaignRequest(
                 $"Docker Smoke Test Campaign {Guid.NewGuid():N}",
+                "north-africa",
                 "north-africa-1942",
                 Side.Axis,
                 RandomSeed: 1942),

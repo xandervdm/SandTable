@@ -5,7 +5,7 @@
     "height": 620
   },
   "backgroundImage": {
-    "url": "/theatres/north-africa/north-africa-theatre.png",
+    "assetId": "map-base",
     "fit": "stretch"
   },
   "regions": {

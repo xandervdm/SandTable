@@ -88,6 +88,7 @@ try {
 
     $campaign = Invoke-SmokeJson -Method Post -Path '/api/campaigns' -Body @{
         name = 'Smoke Test North Africa Campaign'
+        theatreId = 'north-africa'
         scenarioId = 'north-africa-1942'
         playerSide = 'Axis'
         randomSeed = 1942

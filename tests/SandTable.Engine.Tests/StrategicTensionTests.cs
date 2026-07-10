@@ -139,7 +139,7 @@ public class StrategicTensionTests
         var theatrePath = Path.Combine(FindRepoRoot(), "content", "theatres", "north-africa");
         return (
             await ReadJsonAsync<Engine.MapDefinition>(Path.Combine(theatrePath, "map.json")),
-            await ReadJsonAsync<Engine.ScenarioDefinition>(Path.Combine(theatrePath, "scenario-1942.json")),
+            await ReadJsonAsync<Engine.ScenarioDefinition>(Path.Combine(theatrePath, "scenarios", "north-africa-1942.json")),
             await ReadJsonAsync<Engine.UnitCatalog>(Path.Combine(theatrePath, "units.json")),
             await ReadJsonAsync<Engine.TensionCardCatalog>(Path.Combine(theatrePath, "tension-cards.json")));
     }
