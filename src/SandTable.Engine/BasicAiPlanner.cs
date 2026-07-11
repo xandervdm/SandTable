@@ -2,13 +2,44 @@ namespace SandTable.Engine;
 
 public sealed class BasicAiPlanner
 {
-    public IReadOnlyList<SubmittedCommand> Plan(GameState startingState, Side aiSide)
+    public IReadOnlyList<SubmittedCommand> Plan(
+        GameState startingState,
+        Side aiSide,
+        ReserveCatalog? reserveCatalog = null,
+        UnitCatalog? unitCatalog = null)
     {
         var regions = startingState.Regions.ToDictionary(region => region.Id, StringComparer.Ordinal);
         var activeUnits = startingState.Units
             .Where(unit => unit.Status != UnitStatus.Destroyed && unit.Strength > 0)
             .ToArray();
         var commands = new List<SubmittedCommand>();
+
+        foreach (var reserve in startingState.Reserves
+            .Where(candidate => candidate.Side == aiSide && candidate.Status == ReserveStatus.Available)
+            .OrderBy(candidate => candidate.ReserveId, StringComparer.Ordinal)
+            .Take(startingState.DeploymentLimitPerSidePerTurn))
+        {
+            var definition = reserveCatalog?.Reserves.FirstOrDefault(candidate => candidate.ReserveId == reserve.ReserveId);
+            var target = definition?.EligibleRegionIds
+                .Select(regionId => regions.GetValueOrDefault(regionId))
+                .Where(region => region is not null)
+                .OrderByDescending(region => region!.VictoryPoints)
+                .ThenBy(region => region!.Id, StringComparer.Ordinal)
+                .FirstOrDefault(region => ReserveRules.ValidateDeployment(
+                    startingState,
+                    aiSide,
+                    new DeployCommandPayload(reserve.ReserveId, region!.Id),
+                    reserveCatalog,
+                    unitCatalog) is null);
+            if (target is not null)
+            {
+                commands.Add(new SubmittedCommand(
+                    commands.Count + 1,
+                    CommandSource.AI,
+                    aiSide,
+                    new DeployCommandPayload(reserve.ReserveId, target.Id)));
+            }
+        }
 
         foreach (var unit in activeUnits
             .Where(unit => unit.Side == aiSide)
@@ -87,7 +118,7 @@ public sealed class BasicAiPlanner
         foreach (var command in commands)
         {
             var resequenced = command with { Sequence = affordableCommands.Count + 1 };
-            var cost = CommandEconomy.CalculateCost(startingState, resequenced);
+            var cost = CommandEconomy.CalculateCost(startingState, resequenced, reserveCatalog);
             if (CommandEconomy.CanAfford(available, cost))
             {
                 available = CommandEconomy.Spend(available, cost);

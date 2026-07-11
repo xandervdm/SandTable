@@ -1,14 +1,30 @@
 {
   "reserves": [
     {
+      "reserveId": "90th-light-reserve",
+      "unitId": "90th-light-reserve",
+      "side": "Axis",
+      "availableTurn": 2,
+      "cost": {
+        "supplies": 4,
+        "manpower": 5,
+        "fuel": 2,
+        "industry": 0,
+        "commandPoints": 0
+      },
+      "eligibleRegionIds": ["tripoli", "benghazi"],
+      "requiredRegionFeatures": ["Port"],
+      "scenarioIds": ["north-africa-1942"]
+    },
+    {
       "reserveId": "allied-armoured-reserve",
       "unitId": "allied-armoured-reserve",
       "side": "Allies",
       "availableTurn": 6,
       "cost": {
-        "supplies": 0,
-        "manpower": 0,
-        "fuel": 0,
+        "supplies": 5,
+        "manpower": 5,
+        "fuel": 3,
         "industry": 0,
         "commandPoints": 0
       },

@@ -546,7 +546,13 @@ public sealed class CampaignService(
         }
 
         var snapshot = await LoadLatestSnapshotAsync(connection, transaction, campaign.Id, cancellationToken);
-        CommandValidator.ValidateSubmitCommands(snapshot.State, Enum.Parse<Side>(campaign.PlayerSide), request);
+        var content = await contentRepository.LoadAsync(campaign.TheatreId, campaign.ScenarioId, cancellationToken);
+        CommandValidator.ValidateSubmitCommands(
+            snapshot.State,
+            Enum.Parse<Side>(campaign.PlayerSide),
+            request,
+            content.Reserves,
+            content.Units);
 
         for (var index = 0; index < request.Commands.Count; index++)
         {
@@ -750,11 +756,19 @@ public sealed class CampaignService(
         var snapshot = await LoadLatestSnapshotAsync(connection, transaction, campaign.Id, cancellationToken);
         var content = await contentRepository.LoadAsync(campaign.TheatreId, campaign.ScenarioId, cancellationToken);
         var humanCommands = await LoadCommandsAsync(connection, transaction, turn.Id, "Human", cancellationToken);
-        var aiCommands = aiPlanner.Plan(snapshot.State, snapshot.State.EnemySide);
+        var aiCommands = aiPlanner.Plan(snapshot.State, snapshot.State.EnemySide, content.Reserves, content.Units);
 
         await InsertAiCommandsAsync(connection, transaction, campaign.Id, turn.Id, snapshot.Id, aiCommands, cancellationToken);
 
-        var resolution = turnResolver.Resolve(snapshot.State, humanCommands, aiCommands, turn.RandomSeed, content.TensionCards);
+        var resolution = turnResolver.Resolve(
+            snapshot.State,
+            humanCommands,
+            aiCommands,
+            turn.RandomSeed,
+            content.TensionCards,
+            content.Reserves,
+            content.Units,
+            content.Events);
         foreach (var command in resolution.Commands)
         {
             await connection.ExecuteAsync(

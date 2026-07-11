@@ -10,7 +10,10 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
         IReadOnlyCollection<SubmittedCommand> humanCommands,
         IReadOnlyCollection<SubmittedCommand> aiCommands,
         int randomSeed,
-        TensionCardCatalog? tensionCards = null)
+        TensionCardCatalog? tensionCards = null,
+        ReserveCatalog? reserveCatalog = null,
+        UnitCatalog? unitCatalog = null,
+        ScenarioEventCatalog? scenarioEvents = null)
     {
         if (startingState.IsComplete)
         {
@@ -18,15 +21,18 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
         }
 
         var random = new Random(randomSeed);
-        var regions = startingState.Regions.ToDictionary(region => region.Id, StringComparer.Ordinal);
-        var units = startingState.Units.ToDictionary(unit => unit.Id, StringComparer.Ordinal);
         var events = new List<GameEvent>();
+        var resolutionState = ScenarioEventResolver.Apply(startingState, scenarioEvents, ScenarioEventPhase.BeforeResolution, events);
+        var regions = resolutionState.Regions.ToDictionary(region => region.Id, StringComparer.Ordinal);
+        var units = resolutionState.Units.ToDictionary(unit => unit.Id, StringComparer.Ordinal);
+        var reserves = resolutionState.Reserves.ToDictionary(reserve => reserve.ReserveId, StringComparer.Ordinal);
         var resolvedCommands = new List<ResolvedCommand>();
         var supportByRegion = new Dictionary<(Side Side, string RegionId), int>();
         var reconByRegion = new HashSet<(Side Side, string RegionId)>();
         var availableResources = startingState.Resources.ToDictionary(
             pair => pair.Key,
-            pair => CommandEconomy.CreateTurnBudget(startingState, pair.Key));
+            pair => CommandEconomy.CreateTurnBudget(resolutionState, pair.Key));
+        var deploymentsBySide = new Dictionary<Side, int>();
 
         var plannedCommands = humanCommands
             .Concat(aiCommands)
@@ -36,7 +42,13 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
 
         foreach (var command in plannedCommands)
         {
-            var cost = CommandEconomy.CalculateCost(startingState, command);
+            var liveState = resolutionState with
+            {
+                Regions = regions.Values.ToArray(),
+                Units = units.Values.ToArray(),
+                Reserves = reserves.Values.ToArray()
+            };
+            var cost = CommandEconomy.CalculateCost(liveState, command, reserveCatalog);
             if (!availableResources.TryGetValue(command.Side, out var available)
                 || !CommandEconomy.CanAfford(available, cost))
             {
@@ -54,7 +66,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
                 OrderType.Resupply => ResolveResupply(command, startingState, regions, units, events),
                 OrderType.Recon => ResolveRecon(command, startingState, regions, units, reconByRegion, events),
                 OrderType.Support => ResolveSupport(command, regions, units, supportByRegion, events),
-                OrderType.Deploy => Reject(command, "Reserve deployment resolution is introduced in Phase 6."),
+                OrderType.Deploy => ResolveDeploy(command, liveState, regions, units, reserves, reserveCatalog, unitCatalog, deploymentsBySide, events),
                 _ => ResolveHold(command, units, events)
             };
 
@@ -67,26 +79,28 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
         }
 
         CaptureOccupiedRegions(regions, units);
-        ApplySupplyLifecycle(startingState, regions, units, events);
+        ApplySupplyLifecycle(resolutionState, regions, units, events);
 
         var nextResources = availableResources.ToDictionary(
             pair => pair.Key,
             pair => pair.Value with { CommandPoints = startingState.Resources[pair.Key].CommandPoints });
         ApplyModifierResourceEffects(startingState, nextResources, events);
 
-        var evaluationState = startingState with
+        var evaluationState = resolutionState with
         {
             Resources = nextResources,
             Regions = regions.Values.OrderBy(region => region.Id, StringComparer.Ordinal).ToArray(),
-            Units = units.Values.OrderBy(unit => unit.Id, StringComparer.Ordinal).ToArray()
+            Units = units.Values.OrderBy(unit => unit.Id, StringComparer.Ordinal).ToArray(),
+            Reserves = reserves.Values.OrderBy(reserve => reserve.ReserveId, StringComparer.Ordinal).ToArray()
         };
+        evaluationState = ScenarioEventResolver.Apply(evaluationState, scenarioEvents, ScenarioEventPhase.AfterResolution, events);
         var (result, victoryProgress) = ResolveCampaignResult(evaluationState);
         var nextTurnNumber = result.HasValue ? startingState.TurnNumber : startingState.TurnNumber + 1;
         var nextState = evaluationState with
         {
             TurnNumber = nextTurnNumber,
             CampaignDate = startingState.CampaignDate.AddDays(7),
-            Reserves = startingState.Reserves
+            Reserves = evaluationState.Reserves
                 .Select(reserve => reserve.Status == ReserveStatus.Unavailable && reserve.AvailableTurn <= nextTurnNumber
                     ? reserve with { Status = ReserveStatus.Available }
                     : reserve)
@@ -155,6 +169,77 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             resolvedCommands,
             events,
             BuildSummary(startingState, nextState, events));
+    }
+
+    private static ResolvedCommand ResolveDeploy(
+        SubmittedCommand command,
+        GameState state,
+        IReadOnlyDictionary<string, RegionState> regions,
+        Dictionary<string, UnitState> units,
+        Dictionary<string, ReserveState> reserves,
+        ReserveCatalog? reserveCatalog,
+        UnitCatalog? unitCatalog,
+        Dictionary<Side, int> deploymentsBySide,
+        List<GameEvent> events)
+    {
+        if (command.Payload is not DeployCommandPayload deploy)
+        {
+            return Reject(command, "Deploy command payload is invalid.");
+        }
+        if (deploymentsBySide.GetValueOrDefault(command.Side) >= state.DeploymentLimitPerSidePerTurn)
+        {
+            return Reject(command, $"Side '{command.Side}' has reached its deployment limit for this turn.");
+        }
+
+        var rejection = ReserveRules.ValidateDeployment(state, command.Side, deploy, reserveCatalog, unitCatalog);
+        if (rejection is not null)
+        {
+            return Reject(command, rejection);
+        }
+
+        var reserveDefinition = reserveCatalog!.Reserves.Single(reserve => reserve.ReserveId == deploy.ReserveId);
+        var unitDefinition = unitCatalog!.Units.Single(unit => unit.Id == reserveDefinition.UnitId);
+        var target = regions[deploy.TargetRegionIdValue];
+        var deployed = new UnitState(
+            unitDefinition.Id,
+            unitDefinition.Name,
+            unitDefinition.Side,
+            unitDefinition.Type,
+            target.Id,
+            unitDefinition.Strength,
+            unitDefinition.MaxStrength,
+            unitDefinition.Movement,
+            unitDefinition.Attack,
+            unitDefinition.Defence,
+            unitDefinition.Supply,
+            unitDefinition.Morale,
+            unitDefinition.Experience,
+            unitDefinition.Status);
+        units.Add(deployed.Id, deployed);
+        reserves[deploy.ReserveId] = reserves[deploy.ReserveId] with
+        {
+            Status = ReserveStatus.Deployed,
+            DeploymentTurn = state.TurnNumber,
+            DeployedUnitId = deployed.Id
+        };
+        deploymentsBySide[command.Side] = deploymentsBySide.GetValueOrDefault(command.Side) + 1;
+        events.Add(new GameEvent(
+            events.Count + 1,
+            GameEventType.Deployment,
+            GameEventScope.Unit,
+            command.Side,
+            target.Id,
+            deployed.Id,
+            $"{deployed.Name} deployed at {target.Name}.",
+            new Dictionary<string, object?>
+            {
+                ["reserveId"] = deploy.ReserveId,
+                ["unitId"] = deployed.Id,
+                ["targetRegionId"] = target.Id,
+                ["deploymentTurn"] = state.TurnNumber
+            }));
+
+        return new ResolvedCommand(command, Accepted: true, RejectionReason: null, CommandEconomy.Zero);
     }
 
     private static ResolvedCommand ResolveMove(

@@ -11,8 +11,13 @@ public static class CommandEconomy
         };
     }
 
-    public static Resources CalculateCost(GameState state, SubmittedCommand command)
+    public static Resources CalculateCost(GameState state, SubmittedCommand command, ReserveCatalog? reserves = null)
     {
+        if (command.Payload is DeployCommandPayload deploy)
+        {
+            return ReserveRules.CalculateDeploymentCost(state, deploy, reserves);
+        }
+
         if (!state.CommandCosts.TryGetValue(command.CommandType, out var definition))
         {
             return Zero;

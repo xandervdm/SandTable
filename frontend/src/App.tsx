@@ -37,6 +37,7 @@ import type {
   GameClient,
   OrderType,
   RegionState,
+  ReserveDefinition,
   ScenarioContent,
   StrategicTensionCard,
   SubmitCommandPayload,
@@ -64,6 +65,14 @@ interface PendingOrder {
   targetRegionName: string | null;
 }
 
+interface PendingDeployment {
+  reserveId: string;
+  unitId: string;
+  unitName: string;
+  targetRegionId: string;
+  targetRegionName: string;
+}
+
 export function App() {
   const client = useMemo<GameClient>(() => new HttpGameClient(), []);
   const [apiHealthy, setApiHealthy] = useState(false);
@@ -84,6 +93,7 @@ export function App() {
   const [expandedStackRegionId, setExpandedStackRegionId] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<OrderType>("Move");
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const [pendingDeployments, setPendingDeployments] = useState<PendingDeployment[]>([]);
   const [busy, setBusy] = useState<string | null>("Loading command table");
   const [error, setError] = useState<string | null>(null);
 
@@ -149,6 +159,7 @@ export function App() {
       setExpandedStackRegionId(null);
       setSelectedUnitId(resolveInitialUnit(state));
       setPendingOrders([]);
+      setPendingDeployments([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load campaign.");
     } finally {
@@ -215,6 +226,7 @@ export function App() {
       setTimeline(null);
       setReplayEvent(null);
       setPendingOrders([]);
+      setPendingDeployments([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load scenario.");
     } finally {
@@ -276,7 +288,7 @@ export function App() {
       return;
     }
 
-    if (currentTurnStatus === "Planning" && pendingOrders.length === 0) {
+    if (currentTurnStatus === "Planning" && pendingOrders.length === 0 && pendingDeployments.length === 0) {
       setError("Queue at least one order before ending the turn.");
       return;
     }
@@ -294,10 +306,14 @@ export function App() {
       if (currentTurnStatus === "Planning") {
         await client.submitCommands(
           activeCampaignUid,
-          pendingOrders.map((order, index) => ({ sequence: index + 1, command: toSubmitCommand(order) }))
+          [
+            ...pendingDeployments.map((deployment) => ({ command: toSubmitDeployment(deployment) })),
+            ...pendingOrders.map((order) => ({ command: toSubmitCommand(order) }))
+          ].map((item, index) => ({ sequence: index + 1, command: item.command }))
         );
         submittedOrders = true;
         setPendingOrders([]);
+        setPendingDeployments([]);
       }
 
       await client.resolveTurn(activeCampaignUid);
@@ -314,6 +330,24 @@ export function App() {
 
   function removePendingOrder(unitId: string) {
     setPendingOrders((orders) => orders.filter((order) => order.unitId !== unitId));
+  }
+
+  function queueDeployment(reserve: ReserveDefinition, targetRegionId: string) {
+    if (!campaignState || !scenarioContent || currentTurnStatus !== "Planning") return;
+    const unit = scenarioContent.units.units.find((candidate) => candidate.id === reserve.unitId);
+    const target = campaignState.regions.find((candidate) => candidate.id === targetRegionId);
+    if (!unit || !target) return;
+    setPendingDeployments((deployments) => [
+      ...deployments.filter((deployment) => deployment.reserveId !== reserve.reserveId),
+      {
+        reserveId: reserve.reserveId,
+        unitId: reserve.unitId,
+        unitName: unit.name,
+        targetRegionId,
+        targetRegionName: target.name
+      }
+    ]);
+    setError(null);
   }
 
   async function chooseTension(card: StrategicTensionCard, optionId: string) {
@@ -544,16 +578,27 @@ export function App() {
             scenarioContent={scenarioContent}
             currentTurnStatus={currentTurnStatus}
             pendingOrders={pendingOrders}
+            pendingDeployments={pendingDeployments}
             busy={busy}
             onOrderChange={changeOrder}
             onAddOrder={addPendingOrder}
             onRemoveOrder={removePendingOrder}
-            onClearOrders={() => setPendingOrders([])}
+            onRemoveDeployment={(reserveId) => setPendingDeployments((items) => items.filter((item) => item.reserveId !== reserveId))}
+            onClearOrders={() => { setPendingOrders([]); setPendingDeployments([]); }}
             onEndTurn={endTurn}
           />
         </section>
 
         <aside className="right-panel">
+          <ReservePanel
+            campaignState={campaignState}
+            scenarioContent={scenarioContent}
+            currentTurnStatus={currentTurnStatus}
+            pendingOrders={pendingOrders}
+            pendingDeployments={pendingDeployments}
+            busy={busy}
+            onQueue={queueDeployment}
+          />
           <TensionPanel
             cards={campaignState?.activeTensions ?? []}
             busy={busy}
@@ -750,10 +795,12 @@ function OrderDock({
   scenarioContent,
   currentTurnStatus,
   pendingOrders,
+  pendingDeployments,
   busy,
   onOrderChange,
   onAddOrder,
   onRemoveOrder,
+  onRemoveDeployment,
   onClearOrders,
   onEndTurn
 }: {
@@ -765,10 +812,12 @@ function OrderDock({
   scenarioContent: ScenarioContent | null;
   currentTurnStatus: string;
   pendingOrders: PendingOrder[];
+  pendingDeployments: PendingDeployment[];
   busy: string | null;
   onOrderChange(orderType: OrderType): void;
   onAddOrder(): void;
   onRemoveOrder(unitId: string): void;
+  onRemoveDeployment(reserveId: string): void;
   onClearOrders(): void;
   onEndTurn(): void;
 }) {
@@ -783,8 +832,10 @@ function OrderDock({
   const existingOrder = pendingOrders.find((order) => order.unitId === selectedUnit?.id);
   const commandBudget = resolveCommandBudget(campaignState);
   const playerResources = resolvePlayerResources(campaignState);
+  const deploymentCost = sumOrderCosts(pendingDeployments.map((item) => calculateDeploymentCost(item, scenarioContent)));
   const committedOrders = pendingOrders.filter((order) => order.unitId !== selectedUnit?.id);
-  const committedCost = sumOrderCosts(committedOrders.map((order) => calculateOrderCost(order, campaignState, scenarioContent)));
+  const unitOrderCost = sumOrderCosts(committedOrders.map((order) => calculateOrderCost(order, campaignState, scenarioContent)));
+  const committedCost = sumOrderCosts([unitOrderCost, deploymentCost]);
   const draftOrder: PendingOrder | null = selectedUnit && campaignState
     ? {
         commandType: orderType,
@@ -800,7 +851,9 @@ function OrderDock({
   const draftCost = draftOrder ? calculateOrderCost(draftOrder, campaignState, scenarioContent) : zeroProjectedCost;
   const canAffordDraft = committedCost.commandPoints + draftCost.commandPoints <= commandBudget
     && committedCost.supplies + draftCost.supplies <= (playerResources?.supplies ?? 0)
-    && committedCost.fuel + draftCost.fuel <= (playerResources?.fuel ?? 0);
+    && committedCost.manpower + draftCost.manpower <= (playerResources?.manpower ?? 0)
+    && committedCost.fuel + draftCost.fuel <= (playerResources?.fuel ?? 0)
+    && committedCost.industry + draftCost.industry <= (playerResources?.industry ?? 0);
   const canAdd = Boolean(
     selectedUnit &&
       campaignState &&
@@ -810,7 +863,7 @@ function OrderDock({
       (orderUsesCurrentRegion(orderType) || selectedTargetRegionId) &&
       canAffordDraft
   );
-  const endTurnBlocker = resolveEndTurnBlocker(campaignState, currentTurnStatus, pendingOrders, busy);
+  const endTurnBlocker = resolveEndTurnBlocker(campaignState, currentTurnStatus, pendingOrders, pendingDeployments, busy);
   const canEndTurn = !endTurnBlocker;
 
   return (
@@ -866,12 +919,15 @@ function OrderDock({
         ) : (
           <>
             <div className="pending-header">
-              <strong>Pending Orders · {sumOrderCosts(pendingOrders.map((order) => calculateOrderCost(order, campaignState, scenarioContent))).commandPoints}/{commandBudget} CP</strong>
-              <button onClick={onClearOrders} disabled={pendingOrders.length === 0 || Boolean(busy)}>
+              <strong>Pending Orders · {sumOrderCosts([
+                ...pendingOrders.map((order) => calculateOrderCost(order, campaignState, scenarioContent)),
+                ...pendingDeployments.map((item) => calculateDeploymentCost(item, scenarioContent))
+              ]).commandPoints}/{commandBudget} CP</strong>
+              <button onClick={onClearOrders} disabled={pendingOrders.length + pendingDeployments.length === 0 || Boolean(busy)}>
                 Clear
               </button>
             </div>
-            {pendingOrders.length === 0 ? (
+            {pendingOrders.length === 0 && pendingDeployments.length === 0 ? (
               <span className="empty-orders">Queue unit orders before ending the turn.</span>
             ) : (
               <ol>
@@ -884,6 +940,17 @@ function OrderDock({
                       </span>
                     </div>
                     <button onClick={() => onRemoveOrder(order.unitId)} disabled={Boolean(busy)} aria-label={`Remove ${order.unitName} order`}>
+                      <Trash2 size={14} />
+                    </button>
+                  </li>
+                ))}
+                {pendingDeployments.map((deployment) => (
+                  <li key={deployment.reserveId} data-testid={`pending-deployment-${deployment.reserveId}`}>
+                    <div>
+                      <strong>RES {deployment.unitName}</strong>
+                      <span>Deploy at {deployment.targetRegionName}</span>
+                    </div>
+                    <button onClick={() => onRemoveDeployment(deployment.reserveId)} disabled={Boolean(busy)} aria-label={`Remove ${deployment.unitName} deployment`}>
                       <Trash2 size={14} />
                     </button>
                   </li>
@@ -907,6 +974,96 @@ function OrderDock({
         End Turn
       </button>
     </div>
+  );
+}
+
+function ReservePanel({
+  campaignState,
+  scenarioContent,
+  currentTurnStatus,
+  pendingOrders,
+  pendingDeployments,
+  busy,
+  onQueue
+}: {
+  campaignState: CampaignStateResponse | null;
+  scenarioContent: ScenarioContent | null;
+  currentTurnStatus: string;
+  pendingOrders: PendingOrder[];
+  pendingDeployments: PendingDeployment[];
+  busy: string | null;
+  onQueue(reserve: ReserveDefinition, targetRegionId: string): void;
+}) {
+  const [targets, setTargets] = useState<Record<string, string>>({});
+  const definitions = scenarioContent?.reserves.reserves ?? [];
+  const playerSide = campaignState?.campaign.playerSide;
+  const reserveStates = (campaignState?.reserves ?? []).filter((reserve) => reserve.side === playerSide);
+  const pendingCost = sumOrderCosts([
+    ...pendingOrders.map((order) => calculateOrderCost(order, campaignState, scenarioContent)),
+    ...pendingDeployments.map((deployment) => calculateDeploymentCost(deployment, scenarioContent))
+  ]);
+  const resources = resolvePlayerResources(campaignState);
+  const budget = resolveCommandBudget(campaignState);
+
+  return (
+    <Panel title="Reserves">
+      {reserveStates.length === 0 ? <p>No reserves assigned to your side.</p> : (
+        <div className="reserve-list">
+          {reserveStates.map((reserveState) => {
+            const definition = definitions.find((candidate) => candidate.reserveId === reserveState.reserveId);
+            const unit = scenarioContent?.units.units.find((candidate) => candidate.id === reserveState.unitId);
+            const eligibleRegions = (definition?.eligibleRegionIds ?? [])
+              .map((regionId) => campaignState?.regions.find((region) => region.id === regionId))
+              .filter((region): region is RegionState => Boolean(region
+                && region.owner === playerSide
+                && (definition?.requiredRegionFeatures ?? []).every((feature) => region.features.includes(feature))));
+            const targetId = targets[reserveState.reserveId] ?? eligibleRegions[0]?.id ?? "";
+            const cost = definition ? calculateReserveDefinitionCost(definition, scenarioContent) : zeroProjectedCost;
+            const affordable = pendingCost.commandPoints + cost.commandPoints <= budget
+              && pendingCost.supplies + cost.supplies <= (resources?.supplies ?? 0)
+              && pendingCost.manpower + cost.manpower <= (resources?.manpower ?? 0)
+              && pendingCost.fuel + cost.fuel <= (resources?.fuel ?? 0)
+              && pendingCost.industry + cost.industry <= (resources?.industry ?? 0);
+            const queued = pendingDeployments.some((item) => item.reserveId === reserveState.reserveId);
+            const canQueue = reserveState.status === "Available"
+              && currentTurnStatus === "Planning"
+              && eligibleRegions.length > 0
+              && pendingDeployments.length < (scenarioContent?.scenario.deploymentLimitPerSidePerTurn ?? 0)
+              && affordable
+              && !busy;
+
+            return (
+              <article className="reserve-card" key={reserveState.reserveId} data-testid={`reserve-${reserveState.reserveId}`}>
+                <div>
+                  <strong>{unit?.name ?? reserveState.unitId}</strong>
+                  <span>{reserveState.status === "Unavailable" ? `Available turn ${reserveState.availableTurn}` : reserveState.status}</span>
+                </div>
+                {reserveState.status === "Available" && definition ? (
+                  <>
+                    <small>{cost.commandPoints} CP · {cost.supplies} SUP · {cost.manpower} MAN · {cost.fuel} FUEL</small>
+                    <select
+                      aria-label={`Deployment position for ${unit?.name ?? reserveState.unitId}`}
+                      value={targetId}
+                      onChange={(event) => setTargets((current) => ({ ...current, [reserveState.reserveId]: event.target.value }))}
+                    >
+                      {eligibleRegions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
+                    </select>
+                    <button
+                      className="primary-button"
+                      data-testid={`queue-reserve-${reserveState.reserveId}`}
+                      disabled={!canQueue || queued}
+                      onClick={() => onQueue(definition, targetId)}
+                    >
+                      {queued ? "Queued" : "Queue deployment"}
+                    </button>
+                  </>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -1193,6 +1350,7 @@ function resolveEndTurnBlocker(
   campaignState: CampaignStateResponse | null,
   currentTurnStatus: string,
   pendingOrders: PendingOrder[],
+  pendingDeployments: PendingDeployment[],
   busy: string | null
 ) {
   if (busy) {
@@ -1208,11 +1366,11 @@ function resolveEndTurnBlocker(
   }
 
   if (currentTurnStatus === "Planning") {
-    return pendingOrders.length > 0 ? null : "Queue at least one order";
+    return pendingOrders.length + pendingDeployments.length > 0 ? null : "Queue at least one order";
   }
 
   if (currentTurnStatus === "Committed") {
-    return pendingOrders.length === 0 ? null : "Refresh the committed turn";
+    return pendingOrders.length + pendingDeployments.length === 0 ? null : "Refresh the committed turn";
   }
 
   return `Turn is ${currentTurnStatus}`;
@@ -1225,10 +1383,12 @@ function formatCampaignResult(result: string | null | undefined) {
 interface ProjectedOrderCost {
   commandPoints: number;
   supplies: number;
+  manpower: number;
   fuel: number;
+  industry: number;
 }
 
-const zeroProjectedCost: ProjectedOrderCost = { commandPoints: 0, supplies: 0, fuel: 0 };
+const zeroProjectedCost: ProjectedOrderCost = { commandPoints: 0, supplies: 0, manpower: 0, fuel: 0, industry: 0 };
 
 function orderUsesCurrentRegion(orderType: OrderType) {
   return orderType === "HoldPosition" || orderType === "Resupply";
@@ -1257,6 +1417,10 @@ function toSubmitCommand(order: PendingOrder): SubmitCommandPayload {
   return { commandType: "HoldPosition", unitId: order.unitId, regionId: order.fromRegionId };
 }
 
+function toSubmitDeployment(deployment: PendingDeployment): SubmitCommandPayload {
+  return { commandType: "Deploy", reserveId: deployment.reserveId, targetRegionId: deployment.targetRegionId };
+}
+
 function calculateOrderCost(
   order: PendingOrder,
   state: CampaignStateResponse | null,
@@ -1273,7 +1437,25 @@ function calculateOrderCost(
   return {
     commandPoints: definition.baseCommandPoints,
     supplies: definition.fixedSupplies + definition.suppliesPerMovementCost * movementCost,
-    fuel: Math.max(0, definition.fixedFuel + definition.fuelPerMovementCost * movementCost - fuelReserve)
+    manpower: 0,
+    fuel: Math.max(0, definition.fixedFuel + definition.fuelPerMovementCost * movementCost - fuelReserve),
+    industry: 0
+  };
+}
+
+function calculateDeploymentCost(deployment: PendingDeployment, content: ScenarioContent | null): ProjectedOrderCost {
+  const definition = content?.reserves.reserves.find((reserve) => reserve.reserveId === deployment.reserveId);
+  return definition ? calculateReserveDefinitionCost(definition, content) : zeroProjectedCost;
+}
+
+function calculateReserveDefinitionCost(definition: ReserveDefinition, content: ScenarioContent | null): ProjectedOrderCost {
+  const command = content?.scenario.commandCosts.Deploy;
+  return {
+    commandPoints: (command?.baseCommandPoints ?? 0) + definition.cost.commandPoints,
+    supplies: (command?.fixedSupplies ?? 0) + definition.cost.supplies,
+    manpower: definition.cost.manpower,
+    fuel: (command?.fixedFuel ?? 0) + definition.cost.fuel,
+    industry: definition.cost.industry
   };
 }
 
@@ -1281,7 +1463,9 @@ function sumOrderCosts(costs: ProjectedOrderCost[]): ProjectedOrderCost {
   return costs.reduce((total, cost) => ({
     commandPoints: total.commandPoints + cost.commandPoints,
     supplies: total.supplies + cost.supplies,
-    fuel: total.fuel + cost.fuel
+    manpower: total.manpower + cost.manpower,
+    fuel: total.fuel + cost.fuel,
+    industry: total.industry + cost.industry
   }), { ...zeroProjectedCost });
 }
 

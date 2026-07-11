@@ -53,7 +53,7 @@ const state = {
           : [])
   })),
   routes: map.routes,
-  units: units.units.map((unit: Record<string, unknown>) => ({
+  units: units.units.filter((unit: { id: string }) => scenario.startingUnitIds.includes(unit.id)).map((unit: Record<string, unknown>) => ({
     ...unit,
     supplyStatus: "InSupply",
     outOfSupplyTurns: 0,
@@ -242,7 +242,50 @@ test("Phase 5 exposes meaningful orders with projected command costs", async ({ 
   await expect(page.getByText(/Resupply at/)).toBeVisible();
 });
 
-async function mockApi(page: Page, options: { campaignEvents?: unknown[]; timeline?: unknown } = {}) {
+test("Phase 6 queues a bounded content-backed reserve deployment", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  let submittedBody: { commands?: Array<{ command: Record<string, string> }> } | null = null;
+  const reserveState = {
+    ...state,
+    campaign: { ...campaign, currentTurnNumber: 2 },
+    turnNumber: 2,
+    reserves: reserves.reserves.map((reserve: { reserveId: string; unitId: string; side: string; availableTurn: number }) => ({
+      reserveId: reserve.reserveId,
+      unitId: reserve.unitId,
+      side: reserve.side,
+      status: reserve.reserveId === "90th-light-reserve" ? "Available" : "Unavailable",
+      availableTurn: reserve.availableTurn,
+      deploymentTurn: null,
+      deployedUnitId: null
+    }))
+  };
+  await mockApi(page, {
+    campaignState: reserveState,
+    onSubmit: (body) => { submittedBody = body; }
+  });
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Reserves" })).toBeVisible();
+  await expect(page.getByTestId("reserve-90th-light-reserve")).toContainText("90th Light Africa Division");
+  await expect(page.getByTestId("reserve-90th-light-reserve")).toContainText("1 CP · 4 SUP · 5 MAN · 2 FUEL");
+  await page.getByTestId("queue-reserve-90th-light-reserve").click();
+  await expect(page.getByTestId("pending-deployment-90th-light-reserve")).toContainText("Deploy at");
+  await page.getByRole("button", { name: "End Turn" }).click();
+
+  expect(submittedBody).not.toBeNull();
+  expect(submittedBody!.commands?.[0].command).toEqual({
+    commandType: "Deploy",
+    reserveId: "90th-light-reserve",
+    targetRegionId: "tripoli"
+  });
+});
+
+async function mockApi(page: Page, options: {
+  campaignEvents?: unknown[];
+  timeline?: unknown;
+  campaignState?: typeof state;
+  onSubmit?: (body: { commands?: Array<{ command: Record<string, string> }> }) => void;
+} = {}) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const pathname = url.pathname;
@@ -299,7 +342,16 @@ async function mockApi(page: Page, options: { campaignEvents?: unknown[]; timeli
       return;
     }
     if (pathname === `/api/campaigns/${campaign.campaignUid}/state`) {
-      await route.fulfill({ json: state });
+      await route.fulfill({ json: options.campaignState ?? state });
+      return;
+    }
+    if (pathname === `/api/campaigns/${campaign.campaignUid}/commands` && route.request().method() === "POST") {
+      options.onSubmit?.(route.request().postDataJSON());
+      await route.fulfill({ json: { accepted: true } });
+      return;
+    }
+    if (pathname === `/api/campaigns/${campaign.campaignUid}/resolve-turn` && route.request().method() === "POST") {
+      await route.fulfill({ json: { resolved: true } });
       return;
     }
     if (pathname === `/api/campaigns/${campaign.campaignUid}/events`) {

@@ -1,6 +1,23 @@
 {
   "events": [
     {
+      "id": "axis-reserve-released",
+      "trigger": {
+        "turn": 2,
+        "phase": "BeforeResolution"
+      },
+      "conditions": [],
+      "effects": [
+        {
+          "effectType": "setReserveStatus",
+          "reserveId": "90th-light-reserve",
+          "reserveStatus": "Available",
+          "description": "The Axis light division becomes available."
+        }
+      ],
+      "message": "The 90th Light Africa Division has arrived at the coastal ports."
+    },
+    {
       "id": "allied-reserve-released",
       "trigger": {
         "turn": 6,

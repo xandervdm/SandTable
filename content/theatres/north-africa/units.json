@@ -52,6 +52,23 @@
       "deploymentRegionIds": ["tripoli", "benghazi"]
     },
     {
+      "id": "90th-light-reserve",
+      "name": "90th Light Africa Division",
+      "side": "Axis",
+      "type": "Infantry",
+      "regionId": "tripoli",
+      "strength": 7,
+      "maxStrength": 7,
+      "movement": 2,
+      "attack": 4,
+      "defence": 4,
+      "supply": 7,
+      "morale": 7,
+      "experience": 5,
+      "status": "Ready",
+      "deploymentRegionIds": ["tripoli", "benghazi"]
+    },
+    {
       "id": "7th-armoured",
       "name": "7th Armoured Division",
       "side": "Allies",

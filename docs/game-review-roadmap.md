@@ -225,6 +225,8 @@ Exit gate:
 
 ### Phase 6 - Reserves, Reinforcements, and Scenario Events
 
+Status: **Complete — 11 July 2026.** North Africa now authors bounded Axis and Allied reserve pools with stable unit templates, availability turns, full resource/command costs, controlled supplied deployment positions, required features, and a per-side turn limit. The Engine resolves `Deploy` through the normal human/AI command pipeline, creates the stable unit once, updates snapshot reserve state, and emits persisted `Deployment` events. Scheduled before/after-resolution events execute deterministically once and persist their history and `Scenario` events. API validation, AI planning, and resolution share the same reserve rules; the command table exposes available reserves only after those rules pass, including target selection, cost projection, and pending-order submission.
+
 1. Add theatre/scenario-authored reserve pools with stable unit IDs.
 2. Define availability turn, resource/command cost, eligible deployment positions, and per-turn limits.
 3. Require appropriate controlled supply/entry positions.

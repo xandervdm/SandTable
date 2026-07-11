@@ -92,6 +92,6 @@
     "tobruk-garrison",
     "desert-air-wing"
   ],
-  "reserveIds": ["allied-armoured-reserve"],
+  "reserveIds": ["90th-light-reserve", "allied-armoured-reserve"],
   "deploymentLimitPerSidePerTurn": 1
 }

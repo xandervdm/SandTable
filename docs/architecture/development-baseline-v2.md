@@ -165,11 +165,20 @@ Each scenario identifies its `reserveIds` and `deploymentLimitPerSidePerTurn`. A
 
 `GameState.Reserves` records each reserve's status (`Unavailable`, `Available`, `Deployed`, or `Removed`), deployment turn, and deployed unit ID when applicable.
 
+### Phase 6 reserve and event activation
+
+- API validation, AI planning, command costing, and Engine resolution use the same content-backed reserve rules. A legal target must be listed by the reserve, controlled by its side, satisfy every required feature, and connect to that side's controlled port/depot supply network.
+- The authored reserve cost is added to the scenario's `Deploy` command cost and spent from the same ordered per-side turn budget. `deploymentLimitPerSidePerTurn` bounds accepted deployments, and a deployed stable unit ID cannot be created again.
+- Accepted deployments update `ReserveState`, create the referenced `UnitDefinition` at the chosen region, and emit a persisted `Deployment` event. There is no deployment-only mutation endpoint.
+- The basic AI considers available reserves before field-unit orders, chooses only a legal authored position, and subjects the deployment to the same resource budget as all other commands.
+- The command table reads reserve state and definitions from the API, projects the full cost, filters eligible controlled positions with required features, and submits the typed `Deploy` payload in the normal pending order sequence.
+- Scheduled scenario events run in authored order in `BeforeResolution` or `AfterResolution`, apply ordered effects, append their stable ID to `ScenarioEventHistory`, and emit a persisted `Scenario` event. History prevents a one-time event from firing again.
+
 ### Scenario events
 
 `events.json` contains ordered, stable event definitions. An event has an ID, a deterministic trigger, optional conditions, an ordered effects collection, and display text.
 
-V2 trigger phases are `BeforeResolution` and `AfterResolution`, with a required turn number. Events with the same phase and turn execute in file order; duplicate IDs are invalid. Event effects use the same typed effect catalogue as strategic tensions, extended with reserve availability/deployment effects where required. Direct mutation through an API-only special case is not allowed.
+V2 trigger phases are `BeforeResolution` and `AfterResolution`, with a required turn number. Events with the same phase and turn execute in file order; duplicate IDs are invalid. Phase 6 supports `regionControlled` and `reserveAvailable` conditions and the typed `setReserveStatus` effect; unsupported condition/effect types or broken references fail package validation. Direct mutation through an API-only special case is not allowed.
 
 Events are evaluated from explicit state/content/seed inputs, recorded in `GameState.ScenarioEventHistory`, and emitted as persisted `Scenario` events. A referenced unit, reserve, region, selector, effect, or scenario must pass package validation before campaign creation.
 

@@ -397,6 +397,24 @@ internal static class TheatrePackageValidator
             Require(ids.Add(definition.Id), file, $"{field}.id", $"duplicates event '{definition.Id}'.");
             Require(definition.Trigger is not null && definition.Trigger.Turn > 0, file, $"{field}.trigger.turn", "must be positive.");
             Require(definition.Conditions is not null, file, $"{field}.conditions", "is required.");
+            for (var conditionIndex = 0; conditionIndex < definition.Conditions.Count; conditionIndex++)
+            {
+                var condition = definition.Conditions[conditionIndex];
+                var conditionField = $"{field}.conditions[{conditionIndex}]";
+                Require(condition.Type is "regionControlled" or "reserveAvailable", file, $"{conditionField}.type",
+                    $"uses unsupported condition '{condition.Type}'.");
+                if (condition.Type == "regionControlled")
+                {
+                    Require(condition.RegionId is not null && regionIds.Contains(condition.RegionId), file, $"{conditionField}.regionId",
+                        $"references missing region '{condition.RegionId}'.");
+                    Require(condition.Side.HasValue, file, $"{conditionField}.side", "is required.");
+                }
+                if (condition.Type == "reserveAvailable")
+                {
+                    Require(condition.ReserveId is not null && reserveIds.Contains(condition.ReserveId), file, $"{conditionField}.reserveId",
+                        $"references missing reserve '{condition.ReserveId}'.");
+                }
+            }
             Require(definition.Effects is { Count: > 0 }, file, $"{field}.effects", "must contain at least one effect.");
             for (var effectIndex = 0; effectIndex < definition.Effects.Count; effectIndex++)
             {

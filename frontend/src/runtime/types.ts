@@ -167,12 +167,23 @@ export interface ScenarioContent {
   map: MapDefinition;
   scenario: ScenarioDefinition;
   units: { units: UnitDefinition[] };
-  reserves: { reserves: unknown[] };
+  reserves: { reserves: ReserveDefinition[] };
   doctrines: unknown;
   events: unknown;
   tensionCards: unknown;
   assets: { assets: MapAssetDefinition[] };
   display?: MapDisplayDefinition | null;
+}
+
+export interface ReserveDefinition {
+  reserveId: string;
+  unitId: string;
+  side: Side;
+  availableTurn: number;
+  cost: Resources;
+  eligibleRegionIds: string[];
+  requiredRegionFeatures?: string[] | null;
+  scenarioIds?: string[] | null;
 }
 
 export interface CampaignSummary {

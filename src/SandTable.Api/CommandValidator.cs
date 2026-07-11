@@ -7,7 +7,9 @@ public static class CommandValidator
     public static void ValidateSubmitCommands(
         GameState state,
         Side playerSide,
-        SubmitCommandsRequest? request)
+        SubmitCommandsRequest? request,
+        ReserveCatalog? reserveCatalog = null,
+        UnitCatalog? unitCatalog = null)
     {
         var errors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         if (request?.Commands is null)
@@ -25,10 +27,10 @@ public static class CommandValidator
 
         var units = state.Units.ToDictionary(unit => unit.Id, StringComparer.Ordinal);
         var regions = state.Regions.ToDictionary(region => region.Id, StringComparer.Ordinal);
-        var reserves = state.Reserves.ToDictionary(reserve => reserve.ReserveId, StringComparer.Ordinal);
         var sequences = new HashSet<int>();
         var commandedUnitIds = new HashSet<string>(StringComparer.Ordinal);
         var commandedReserveIds = new HashSet<string>(StringComparer.Ordinal);
+        var deploymentCount = 0;
 
         for (var index = 0; index < request.Commands.Count; index++)
         {
@@ -56,7 +58,12 @@ public static class CommandValidator
             var payload = requestCommand.Command;
             if (payload is DeployCommandPayload deploy)
             {
-                ValidateDeploy(errors, prefix, deploy, playerSide, reserves, regions, commandedReserveIds);
+                ValidateDeploy(errors, prefix, deploy, state, playerSide, reserveCatalog, unitCatalog, commandedReserveIds);
+                deploymentCount++;
+                if (deploymentCount > state.DeploymentLimitPerSidePerTurn)
+                {
+                    AddError(errors, $"{prefix}.command.reserveId", $"Side '{playerSide}' may deploy at most {state.DeploymentLimitPerSidePerTurn} reserve(s) per turn.");
+                }
                 continue;
             }
 
@@ -115,7 +122,7 @@ public static class CommandValidator
             }
         }
 
-        ValidateBudget(errors, state, playerSide, request.Commands);
+        ValidateBudget(errors, state, playerSide, request.Commands, reserveCatalog);
 
         ThrowIfInvalid(errors);
     }
@@ -124,7 +131,8 @@ public static class CommandValidator
         Dictionary<string, List<string>> errors,
         GameState state,
         Side side,
-        IReadOnlyList<SubmitCommandRequest> commands)
+        IReadOnlyList<SubmitCommandRequest> commands,
+        ReserveCatalog? reserveCatalog)
     {
         var available = CommandEconomy.CreateTurnBudget(state, side);
         foreach (var indexed in commands
@@ -137,7 +145,7 @@ public static class CommandValidator
                 CommandSource.Human,
                 side,
                 indexed.Command.Command);
-            var cost = CommandEconomy.CalculateCost(state, submitted);
+            var cost = CommandEconomy.CalculateCost(state, submitted, reserveCatalog);
             if (!CommandEconomy.CanAfford(available, cost))
             {
                 AddError(
@@ -254,33 +262,24 @@ public static class CommandValidator
         Dictionary<string, List<string>> errors,
         string prefix,
         DeployCommandPayload deploy,
+        GameState state,
         Side playerSide,
-        IReadOnlyDictionary<string, ReserveState> reserves,
-        IReadOnlyDictionary<string, RegionState> regions,
+        ReserveCatalog? reserveCatalog,
+        UnitCatalog? unitCatalog,
         HashSet<string> commandedReserveIds)
     {
-        if (!reserves.TryGetValue(deploy.ReserveId, out var reserve))
+        if (!commandedReserveIds.Add(deploy.ReserveId))
         {
-            AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{deploy.ReserveId}' does not exist in the latest campaign state.");
+            AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{deploy.ReserveId}' already has a command in this submission.");
         }
-        else
+
+        var rejection = ReserveRules.ValidateDeployment(state, playerSide, deploy, reserveCatalog, unitCatalog);
+        if (rejection is not null)
         {
-            if (!commandedReserveIds.Add(reserve.ReserveId))
-            {
-                AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{reserve.ReserveId}' already has a command in this submission.");
-            }
-            if (reserve.Side != playerSide)
-            {
-                AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{reserve.ReserveId}' does not belong to side '{playerSide}'.");
-            }
-            if (reserve.Status != ReserveStatus.Available)
-            {
-                AddError(errors, $"{prefix}.command.reserveId", $"Reserve '{reserve.ReserveId}' is '{reserve.Status}', not Available.");
-            }
-        }
-        if (!regions.ContainsKey(deploy.TargetRegionIdValue))
-        {
-            AddError(errors, $"{prefix}.command.targetRegionId", $"Region '{deploy.TargetRegionIdValue}' does not exist in the latest campaign state.");
+            var field = rejection.StartsWith("Region '", StringComparison.Ordinal)
+                ? $"{prefix}.command.targetRegionId"
+                : $"{prefix}.command.reserveId";
+            AddError(errors, field, rejection);
         }
     }
 

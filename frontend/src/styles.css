@@ -755,6 +755,42 @@ button:disabled {
   padding: 10px;
 }
 
+.reserve-list {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+}
+
+.reserve-card {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #4a4438;
+  border-radius: 6px;
+  background: rgba(124, 154, 118, 0.1);
+}
+
+.reserve-card > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reserve-card strong {
+  color: #f8dd91;
+}
+
+.reserve-card span,
+.reserve-card small {
+  color: #c7bda5;
+  font-size: 11px;
+}
+
+.reserve-card select,
+.reserve-card button {
+  width: 100%;
+}
+
 .tension-card {
   padding: 10px;
   border: 1px solid #4a4438;

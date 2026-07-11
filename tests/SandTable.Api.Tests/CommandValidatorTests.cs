@@ -129,6 +129,49 @@ public class CommandValidatorTests
         Assert.Contains("command points", exception.Errors["commands[1].command"][0]);
     }
 
+    [Fact]
+    public void ValidateSubmitCommands_accepts_legal_content_backed_deployment()
+    {
+        var state = CreateState() with
+        {
+            Reserves = [new ReserveState("axis-reserve", "axis-reserve-unit", Side.Axis, ReserveStatus.Available, 1, null, null)]
+        };
+        var reserveCatalog = new ReserveCatalog([
+            new ReserveDefinition("axis-reserve", "axis-reserve-unit", Side.Axis, 1, new Resources(1, 2, 1, 0, 0), ["base"])
+        ]);
+        var unitCatalog = new UnitCatalog([
+            new UnitDefinition("axis-reserve-unit", "Axis Reserve", Side.Axis, UnitType.Infantry, "base", 6, 6, 2, 3, 3, 6, 6, 4, UnitStatus.Ready)
+        ]);
+        var request = new SubmitCommandsRequest([
+            new SubmitCommandRequest(1, new DeployCommandPayload("axis-reserve", "base"))
+        ]);
+
+        CommandValidator.ValidateSubmitCommands(state, Side.Axis, request, reserveCatalog, unitCatalog);
+    }
+
+    [Fact]
+    public void ValidateSubmitCommands_rejects_deployment_outside_controlled_eligible_position()
+    {
+        var state = CreateState() with
+        {
+            Reserves = [new ReserveState("axis-reserve", "axis-reserve-unit", Side.Axis, ReserveStatus.Available, 1, null, null)]
+        };
+        var reserveCatalog = new ReserveCatalog([
+            new ReserveDefinition("axis-reserve", "axis-reserve-unit", Side.Axis, 1, CommandEconomy.Zero, ["base"])
+        ]);
+        var unitCatalog = new UnitCatalog([
+            new UnitDefinition("axis-reserve-unit", "Axis Reserve", Side.Axis, UnitType.Infantry, "base", 6, 6, 2, 3, 3, 6, 6, 4, UnitStatus.Ready)
+        ]);
+        var request = new SubmitCommandsRequest([
+            new SubmitCommandRequest(1, new DeployCommandPayload("axis-reserve", "frontline"))
+        ]);
+
+        var exception = Assert.Throws<ApiValidationException>(() =>
+            CommandValidator.ValidateSubmitCommands(state, Side.Axis, request, reserveCatalog, unitCatalog));
+
+        Assert.Contains("commands[0].command.targetRegionId", exception.Errors.Keys);
+    }
+
     private static GameState CreateState()
     {
         return new GameState(
@@ -146,7 +189,7 @@ public class CommandValidatorTests
                 [Side.Allies] = new(10, 10, 10, 10, 3)
             },
             [
-                new RegionState("base", "Base", RegionKind.EntryPoint, "Desert", Side.Axis, 1, 1, [], ["frontline", "open-desert"]),
+                new RegionState("base", "Base", RegionKind.EntryPoint, "Desert", Side.Axis, 1, 1, ["Port"], ["frontline", "open-desert"]),
                 new RegionState("frontline", "Frontline", RegionKind.Objective, "Desert", Side.Allies, 1, 1, [], ["base"]),
                 new RegionState("open-desert", "Open Desert", RegionKind.OperationalPosition, "Desert", Side.Neutral, 0, 0, [], ["base"]),
                 new RegionState("distant", "Distant", RegionKind.PrimaryObjective, "Desert", Side.Allies, 1, 1, [], [])
