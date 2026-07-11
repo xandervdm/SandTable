@@ -241,6 +241,8 @@ Exit gate:
 
 ### Phase 7 - Combat, AI, and Operational Map Depth
 
+Status: **Complete — 11 July 2026.** North Africa now contains 18 meaningful positions and 25 weighted routes, including distinct coastal and southern desert axes linked by operational junctions. Move and Attack orders accept ordered multi-node paths within effective movement allowance; enemy contact blocks ordinary movement and becomes the engagement point for attacks. The Engine resolves all attacks on a region together after support and reconnaissance, aggregates multiple attackers and defenders into one deterministic battle, distributes losses, disrupts defeated formations, selects a controlled supplied retreat when one exists, and captures the position only after defenders are destroyed or withdrawn. The AI now scores reserve use, objectives, supply junctions, threatened positions, coordinated attacks, damaged-unit withdrawal, resupply, support, and force preservation. The command table exposes every reachable legal target through both the map and an accessible selector and submits the exact weighted path.
+
 1. Add approximately 6-10 meaningful North Africa operational positions.
 2. Add explicit region kinds and route movement/supply costs.
 3. Permit multi-node movement where allowance and route state permit, with enemy contact stopping or contesting movement as defined by the rules.

@@ -280,11 +280,34 @@ test("Phase 6 queues a bounded content-backed reserve deployment", async ({ page
   });
 });
 
+test("Phase 7 submits the weighted multi-node path selected on the operational map", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  let submittedBody: { commands?: Array<{ command: Record<string, unknown> }> } | null = null;
+  await mockApi(page, { onSubmit: (body) => { submittedBody = body; } });
+  await page.goto("/");
+
+  await page.getByLabel("Order target").selectOption("ajdabiya");
+
+  await expect(page.getByText("Target: Ajdabiya")).toBeVisible();
+  await expect(page.getByText(/Cost: 1 CP · 2 SUP · 2 FUEL/)).toBeVisible();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByText("Move Ajdabiya via 2 positions")).toBeVisible();
+  await page.getByRole("button", { name: "End Turn" }).click();
+
+  expect(submittedBody).not.toBeNull();
+  expect(submittedBody!.commands?.[0].command).toEqual({
+    commandType: "Move",
+    unitId: "15th-panzer",
+    fromRegionId: "tripoli",
+    pathRegionIds: ["sirte", "ajdabiya"]
+  });
+});
+
 async function mockApi(page: Page, options: {
   campaignEvents?: unknown[];
   timeline?: unknown;
   campaignState?: typeof state;
-  onSubmit?: (body: { commands?: Array<{ command: Record<string, string> }> }) => void;
+  onSubmit?: (body: { commands?: Array<{ command: Record<string, unknown> }> }) => void;
 } = {}) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());

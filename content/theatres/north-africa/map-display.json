@@ -39,6 +39,12 @@
       "counterAnchor": { "x": 44, "y": 58 },
       "stackDirection": "row"
     },
+    "medenine": {
+      "labelOffset": { "x": 0, "y": -34 },
+      "hitArea": { "rx": 40, "ry": 28 },
+      "counterAnchor": { "x": 0, "y": 45 },
+      "stackDirection": "row"
+    },
     "fezzan-desert": {
       "labelOffset": { "x": 0, "y": -44 },
       "hitArea": { "rx": 50, "ry": 36 },
@@ -51,6 +57,18 @@
       "counterAnchor": { "x": 0, "y": 56 },
       "stackDirection": "row"
     },
+    "sirte": {
+      "labelOffset": { "x": 0, "y": -34 },
+      "hitArea": { "rx": 40, "ry": 28 },
+      "counterAnchor": { "x": 0, "y": 45 },
+      "stackDirection": "row"
+    },
+    "ajdabiya": {
+      "labelOffset": { "x": 0, "y": -34 },
+      "hitArea": { "rx": 42, "ry": 28 },
+      "counterAnchor": { "x": 0, "y": 45 },
+      "stackDirection": "row"
+    },
     "gazala": {
       "labelOffset": { "x": 0, "y": -39 },
       "hitArea": { "rx": 46, "ry": 30 },
@@ -61,6 +79,18 @@
       "labelOffset": { "x": 0, "y": -42 },
       "hitArea": { "rx": 48, "ry": 31 },
       "counterAnchor": { "x": 0, "y": 58 },
+      "stackDirection": "row"
+    },
+    "bir-hakeim": {
+      "labelOffset": { "x": 0, "y": -34 },
+      "hitArea": { "rx": 44, "ry": 28 },
+      "counterAnchor": { "x": 0, "y": 45 },
+      "stackDirection": "row"
+    },
+    "mersamatruh": {
+      "labelOffset": { "x": 0, "y": -35 },
+      "hitArea": { "rx": 46, "ry": 28 },
+      "counterAnchor": { "x": 0, "y": 47 },
       "stackDirection": "row"
     },
     "el-alamein": {
@@ -79,6 +109,12 @@
       "labelOffset": { "x": 0, "y": -2 },
       "hitArea": { "rx": 48, "ry": 32 },
       "counterAnchor": { "x": 0, "y": 58 },
+      "stackDirection": "row"
+    },
+    "siwa-oasis": {
+      "labelOffset": { "x": 0, "y": -34 },
+      "hitArea": { "rx": 43, "ry": 28 },
+      "counterAnchor": { "x": 0, "y": 45 },
       "stackDirection": "row"
     }
   }

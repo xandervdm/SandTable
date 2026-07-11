@@ -174,6 +174,16 @@ Each scenario identifies its `reserveIds` and `deploymentLimitPerSidePerTurn`. A
 - The command table reads reserve state and definitions from the API, projects the full cost, filters eligible controlled positions with required features, and submits the typed `Deploy` payload in the normal pending order sequence.
 - Scheduled scenario events run in authored order in `BeforeResolution` or `AfterResolution`, apply ordered effects, append their stable ID to `ScenarioEventHistory`, and emit a persisted `Scenario` event. History prevents a one-time event from firing again.
 
+### Phase 7 operational depth
+
+- The North Africa graph remains the campaign topology. It now contains 18 authored positions and 25 explicit weighted routes: a coastal axis, a southern desert axis, and cross-axis junctions at Medenine, Ajdabiya, Bir Hakeim, Mersa Matruh, and Siwa Oasis. No grid or coordinate-derived adjacency is introduced.
+- `OperationalPathfinder` is the shared Engine source for effective movement, weighted reachability, path continuity, and first enemy contact. Out-of-supply and disrupted formations lose movement allowance. Submitted paths may not repeat a region.
+- `Move` captures traversed empty positions but stops before enemy contact. `Attack` advances through empty approach positions and engages at the first enemy-occupied position on its path. Both commands spend their complete route movement cost.
+- Attack commands are prepared during command processing and resolved after every side's support and reconnaissance orders. `RegionalBattleResolver` groups attacks by region and side, aggregates every participating formation, applies terrain, entrenchment, supply, experience, morale, support, reconnaissance, campaign modifiers, and seeded variance, then emits one persisted battle record for the engagement.
+- Battle losses are distributed across participating formations. The losing side becomes disrupted; a defeated defender retreats to a controlled enemy-free position, preferring a connected supply route and stronger supply/VP position. The attacker captures only when no active defender remains in the region. Hold and Resupply restore a disrupted formation to Ready.
+- `BasicAiPlanner` is now a deterministic scored planner. It prioritises legal reserve deployment, vulnerable-unit withdrawal/resupply, valuable objectives and supply junctions, threatened-position defence, multi-formation attacks, logistics/support coordination, and force-preserving holds. Every selected plan still passes through the normal ordered command budget and the same Engine rules as player commands.
+- The command table computes reachable weighted paths from the latest state. The player may choose a legal target on the Pixi map or through the accessible order-target selector; the submitted typed command contains the complete ordered path and the cost projection uses every route in that path.
+
 ### Scenario events
 
 `events.json` contains ordered, stable event definitions. An event has an ID, a deterministic trigger, optional conditions, an ordered effects collection, and display text.

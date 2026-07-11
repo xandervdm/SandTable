@@ -63,6 +63,7 @@ interface PendingOrder {
   fromRegionName: string;
   targetRegionId: string | null;
   targetRegionName: string | null;
+  pathRegionIds: string[];
 }
 
 interface PendingDeployment {
@@ -272,7 +273,12 @@ export function App() {
       fromRegionId: unit.regionId,
       fromRegionName: fromRegion?.name ?? unit.regionId,
       targetRegionId: orderUsesCurrentRegion(orderType) ? null : selectedTargetRegionId,
-      targetRegionName: orderUsesCurrentRegion(orderType) ? null : targetRegion?.name ?? selectedTargetRegionId
+      targetRegionName: orderUsesCurrentRegion(orderType) ? null : targetRegion?.name ?? selectedTargetRegionId,
+      pathRegionIds: orderUsesCurrentRegion(orderType)
+        ? []
+        : orderType === "Move" || orderType === "Attack"
+          ? resolveOperationalPaths(orderType, unit, campaignState)[selectedTargetRegionId ?? ""] ?? []
+          : selectedTargetRegionId ? [selectedTargetRegionId] : []
     };
 
     setPendingOrders((orders) => [
@@ -581,6 +587,7 @@ export function App() {
             pendingDeployments={pendingDeployments}
             busy={busy}
             onOrderChange={changeOrder}
+            onTargetChange={setSelectedTargetRegionId}
             onAddOrder={addPendingOrder}
             onRemoveOrder={removePendingOrder}
             onRemoveDeployment={(reserveId) => setPendingDeployments((items) => items.filter((item) => item.reserveId !== reserveId))}
@@ -798,6 +805,7 @@ function OrderDock({
   pendingDeployments,
   busy,
   onOrderChange,
+  onTargetChange,
   onAddOrder,
   onRemoveOrder,
   onRemoveDeployment,
@@ -815,6 +823,7 @@ function OrderDock({
   pendingDeployments: PendingDeployment[];
   busy: string | null;
   onOrderChange(orderType: OrderType): void;
+  onTargetChange(regionId: string | null): void;
   onAddOrder(): void;
   onRemoveOrder(unitId: string): void;
   onRemoveDeployment(reserveId: string): void;
@@ -845,7 +854,10 @@ function OrderDock({
         fromRegionId: selectedUnit.regionId,
         fromRegionName: campaignState.regions.find((region) => region.id === selectedUnit.regionId)?.name ?? selectedUnit.regionId,
         targetRegionId: selectedTargetRegionId,
-        targetRegionName: campaignState.regions.find((region) => region.id === selectedTargetRegionId)?.name ?? selectedTargetRegionId
+        targetRegionName: campaignState.regions.find((region) => region.id === selectedTargetRegionId)?.name ?? selectedTargetRegionId,
+        pathRegionIds: orderType === "Move" || orderType === "Attack"
+          ? resolveOperationalPaths(orderType, selectedUnit, campaignState)[selectedTargetRegionId ?? ""] ?? []
+          : selectedTargetRegionId ? [selectedTargetRegionId] : []
       }
     : null;
   const draftCost = draftOrder ? calculateOrderCost(draftOrder, campaignState, scenarioContent) : zeroProjectedCost;
@@ -889,6 +901,21 @@ function OrderDock({
           </>
         ) : (
           <>
+            {!orderUsesCurrentRegion(orderType) && validTargetIds.length > 0 ? (
+              <select
+                className="order-target-select"
+                aria-label="Order target"
+                value={selectedTargetRegionId ?? ""}
+                onChange={(event) => onTargetChange(event.target.value || null)}
+              >
+                <option value="">Select target</option>
+                {validTargetIds.map((regionId) => (
+                  <option key={regionId} value={regionId}>
+                    {campaignState?.regions.find((region) => region.id === regionId)?.name ?? regionId}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <span>
               {!selectedUnitIsPlayer && selectedUnit
                 ? "Enemy unit selected"
@@ -1400,7 +1427,7 @@ function toSubmitCommand(order: PendingOrder): SubmitCommandPayload {
       commandType: order.commandType,
       unitId: order.unitId,
       fromRegionId: order.fromRegionId,
-      pathRegionIds: order.targetRegionId ? [order.targetRegionId] : []
+      pathRegionIds: order.pathRegionIds
     };
   }
   if (order.commandType === "Support" || order.commandType === "Recon") {
@@ -1428,11 +1455,9 @@ function calculateOrderCost(
 ): ProjectedOrderCost {
   const definition = content?.scenario.commandCosts[order.commandType];
   if (!definition) return zeroProjectedCost;
-  const route = state?.routes.find((candidate) =>
-    order.targetRegionId
-    && (candidate.fromRegionId === order.fromRegionId && candidate.toRegionId === order.targetRegionId
-      || candidate.fromRegionId === order.targetRegionId && candidate.toRegionId === order.fromRegionId));
-  const movementCost = order.commandType === "Move" || order.commandType === "Attack" ? route?.movementCost ?? 0 : 0;
+  const movementCost = order.commandType === "Move" || order.commandType === "Attack"
+    ? calculatePathCost(state?.routes ?? [], order.fromRegionId, order.pathRegionIds)
+    : 0;
   const fuelReserve = state?.campaignModifiers.reduce((total, modifier) => total + (modifier.values.fuelReserve ?? 0), 0) ?? 0;
   return {
     commandPoints: definition.baseCommandPoints,
@@ -1482,7 +1507,7 @@ function resolveCommandBudget(state: CampaignStateResponse | null) {
 function describePendingOrder(order: PendingOrder) {
   if (order.commandType === "HoldPosition") return `Entrench at ${order.fromRegionName}`;
   if (order.commandType === "Resupply") return `Resupply at ${order.fromRegionName}`;
-  return `${order.commandType} ${order.targetRegionName}`;
+  return `${order.commandType} ${order.targetRegionName}${order.pathRegionIds.length > 1 ? ` via ${order.pathRegionIds.length} positions` : ""}`;
 }
 
 function orderIcon(orderType: OrderType) {
@@ -1509,18 +1534,11 @@ function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | nul
   }
 
   if (orderType === "Move") {
-    return currentRegion.adjacentRegionIds.filter((regionId) => {
-      const enemyUnit = state.units.some(
-        (unit) => unit.regionId === regionId && unit.side !== state.campaign.playerSide && unit.status !== "Destroyed"
-      );
-      return !enemyUnit;
-    });
+    return Object.keys(resolveOperationalPaths(orderType, selectedUnit, state));
   }
 
   if (orderType === "Attack") {
-    return currentRegion.adjacentRegionIds.filter((regionId) =>
-      state.units.some((unit) => unit.regionId === regionId && unit.side !== state.campaign.playerSide && unit.status !== "Destroyed")
-    );
+    return Object.keys(resolveOperationalPaths(orderType, selectedUnit, state));
   }
 
   if (orderType === "Support" || orderType === "Recon") {
@@ -1528,6 +1546,64 @@ function resolveValidTargets(orderType: OrderType, selectedUnit: UnitState | nul
   }
 
   return [];
+}
+
+function resolveOperationalPaths(
+  orderType: "Move" | "Attack",
+  selectedUnit: UnitState,
+  state: CampaignStateResponse
+): Record<string, string[]> {
+  const tempoCost = state.campaignModifiers.reduce((total, modifier) => total + (modifier.values.tempoCost ?? 0), 0);
+  const allowance = Math.max(0,
+    selectedUnit.movement
+    - tempoCost
+    - (selectedUnit.supplyStatus === "OutOfSupply" ? 1 : 0)
+    - (selectedUnit.status === "Disrupted" ? 1 : 0));
+  const enemyOccupied = new Set(state.units
+    .filter((unit) => unit.side !== selectedUnit.side && unit.status !== "Destroyed")
+    .map((unit) => unit.regionId));
+  const costs: Record<string, number> = { [selectedUnit.regionId]: 0 };
+  const paths: Record<string, string[]> = {};
+  const queue: Array<{ regionId: string; cost: number; path: string[] }> = [
+    { regionId: selectedUnit.regionId, cost: 0, path: [] }
+  ];
+
+  while (queue.length > 0) {
+    queue.sort((left, right) => left.cost - right.cost || left.regionId.localeCompare(right.regionId));
+    const current = queue.shift()!;
+    if (costs[current.regionId] < current.cost) continue;
+    for (const route of state.routes.filter((candidate) =>
+      candidate.fromRegionId === current.regionId || candidate.toRegionId === current.regionId)) {
+      const next = route.fromRegionId === current.regionId ? route.toRegionId : route.fromRegionId;
+      const nextCost = current.cost + route.movementCost;
+      if (nextCost > allowance || costs[next] !== undefined && costs[next] <= nextCost) continue;
+      const nextPath = [...current.path, next];
+      costs[next] = nextCost;
+      const contact = enemyOccupied.has(next);
+      if ((orderType === "Attack" && contact) || (orderType === "Move" && !contact)) {
+        paths[next] = nextPath;
+      }
+      if (!contact) queue.push({ regionId: next, cost: nextCost, path: nextPath });
+    }
+  }
+
+  if (orderType === "Move") {
+    return Object.fromEntries(Object.entries(paths).filter(([regionId]) => !enemyOccupied.has(regionId)));
+  }
+  return Object.fromEntries(Object.entries(paths).filter(([regionId]) => enemyOccupied.has(regionId)));
+}
+
+function calculatePathCost(routes: CampaignStateResponse["routes"], fromRegionId: string, path: string[]) {
+  let current = fromRegionId;
+  let total = 0;
+  for (const next of path) {
+    const route = routes.find((candidate) =>
+      candidate.fromRegionId === current && candidate.toRegionId === next
+      || candidate.toRegionId === current && candidate.fromRegionId === next);
+    total += route?.movementCost ?? 0;
+    current = next;
+  }
+  return total;
 }
 
 function unitCode(unit: UnitState) {

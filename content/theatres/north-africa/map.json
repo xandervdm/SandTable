@@ -62,6 +62,17 @@
       "features": ["Port", "Airfield", "City"]
     },
     {
+      "id": "medenine",
+      "name": "Medenine",
+      "kind": "OperationalPosition",
+      "position": { "x": 490, "y": 285 },
+      "terrain": "Rough",
+      "owner": "Axis",
+      "victoryPoints": 3,
+      "supplyValue": 0,
+      "features": []
+    },
+    {
       "id": "fezzan-desert",
       "name": "Fezzan Desert",
       "kind": "OperationalPosition",
@@ -84,6 +95,28 @@
       "features": ["Port", "City"]
     },
     {
+      "id": "sirte",
+      "name": "Sirte",
+      "kind": "OperationalPosition",
+      "position": { "x": 620, "y": 405 },
+      "terrain": "Desert",
+      "owner": "Axis",
+      "victoryPoints": 3,
+      "supplyValue": 0,
+      "features": ["Airfield"]
+    },
+    {
+      "id": "ajdabiya",
+      "name": "Ajdabiya",
+      "kind": "OperationalPosition",
+      "position": { "x": 710, "y": 420 },
+      "terrain": "Desert",
+      "owner": "Axis",
+      "victoryPoints": 3,
+      "supplyValue": 0,
+      "features": []
+    },
+    {
       "id": "gazala",
       "name": "Gazala",
       "kind": "OperationalPosition",
@@ -104,6 +137,28 @@
       "victoryPoints": 8,
       "supplyValue": 2,
       "features": ["Port", "Fortified"]
+    },
+    {
+      "id": "bir-hakeim",
+      "name": "Bir Hakeim",
+      "kind": "OperationalPosition",
+      "position": { "x": 825, "y": 445 },
+      "terrain": "Desert",
+      "owner": "Neutral",
+      "victoryPoints": 4,
+      "supplyValue": 0,
+      "features": ["Fortified"]
+    },
+    {
+      "id": "mersamatruh",
+      "name": "Mersa Matruh",
+      "kind": "Objective",
+      "position": { "x": 945, "y": 255 },
+      "terrain": "Coast",
+      "owner": "Allies",
+      "victoryPoints": 5,
+      "supplyValue": 1,
+      "features": ["Port", "Airfield"]
     },
     {
       "id": "el-alamein",
@@ -137,6 +192,17 @@
       "victoryPoints": 10,
       "supplyValue": 2,
       "features": ["City", "SupplyDepot"]
+    },
+    {
+      "id": "siwa-oasis",
+      "name": "Siwa Oasis",
+      "kind": "OperationalPosition",
+      "position": { "x": 980, "y": 505 },
+      "terrain": "Desert",
+      "owner": "Allies",
+      "victoryPoints": 3,
+      "supplyValue": 1,
+      "features": ["SupplyDepot"]
     }
   ],
   "routes": [
@@ -144,14 +210,25 @@
     { "id": "algiers-tunis", "fromRegionId": "algiers", "toRegionId": "tunis", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
     { "id": "algiers-kasserine", "fromRegionId": "algiers", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
     { "id": "tunis-kasserine", "fromRegionId": "tunis", "toRegionId": "kasserine-pass", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
-    { "id": "tunis-tripoli", "fromRegionId": "tunis", "toRegionId": "tripoli", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "tunis-medenine", "fromRegionId": "tunis", "toRegionId": "medenine", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "medenine-tripoli", "fromRegionId": "medenine", "toRegionId": "tripoli", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "medenine-fezzan", "fromRegionId": "medenine", "toRegionId": "fezzan-desert", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
     { "id": "kasserine-fezzan", "fromRegionId": "kasserine-pass", "toRegionId": "fezzan-desert", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
     { "id": "tripoli-fezzan", "fromRegionId": "tripoli", "toRegionId": "fezzan-desert", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
-    { "id": "tripoli-benghazi", "fromRegionId": "tripoli", "toRegionId": "benghazi", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
-    { "id": "fezzan-benghazi", "fromRegionId": "fezzan-desert", "toRegionId": "benghazi", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
+    { "id": "tripoli-sirte", "fromRegionId": "tripoli", "toRegionId": "sirte", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "sirte-ajdabiya", "fromRegionId": "sirte", "toRegionId": "ajdabiya", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "fezzan-ajdabiya", "fromRegionId": "fezzan-desert", "toRegionId": "ajdabiya", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
+    { "id": "ajdabiya-benghazi", "fromRegionId": "ajdabiya", "toRegionId": "benghazi", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "ajdabiya-bir-hakeim", "fromRegionId": "ajdabiya", "toRegionId": "bir-hakeim", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
     { "id": "benghazi-gazala", "fromRegionId": "benghazi", "toRegionId": "gazala", "routeType": "DesertTrack", "movementCost": 1, "supplyCost": 1 },
     { "id": "gazala-tobruk", "fromRegionId": "gazala", "toRegionId": "tobruk", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
-    { "id": "tobruk-el-alamein", "fromRegionId": "tobruk", "toRegionId": "el-alamein", "routeType": "CoastalRoad", "movementCost": 2, "supplyCost": 1 },
+    { "id": "bir-hakeim-gazala", "fromRegionId": "bir-hakeim", "toRegionId": "gazala", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "bir-hakeim-siwa", "fromRegionId": "bir-hakeim", "toRegionId": "siwa-oasis", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
+    { "id": "bir-hakeim-mersamatruh", "fromRegionId": "bir-hakeim", "toRegionId": "mersamatruh", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
+    { "id": "tobruk-mersamatruh", "fromRegionId": "tobruk", "toRegionId": "mersamatruh", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "mersamatruh-el-alamein", "fromRegionId": "mersamatruh", "toRegionId": "el-alamein", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "siwa-el-alamein", "fromRegionId": "siwa-oasis", "toRegionId": "el-alamein", "routeType": "DesertTrack", "movementCost": 2, "supplyCost": 2 },
+    { "id": "siwa-cairo", "fromRegionId": "siwa-oasis", "toRegionId": "cairo", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
     { "id": "el-alamein-alexandria", "fromRegionId": "el-alamein", "toRegionId": "alexandria", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
     { "id": "alexandria-cairo", "fromRegionId": "alexandria", "toRegionId": "cairo", "routeType": "Railroad", "movementCost": 1, "supplyCost": 0 }
   ]

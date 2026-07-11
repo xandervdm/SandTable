@@ -37,10 +37,14 @@ public class Phase5MechanicsTests
 
         Assert.True(resolution.Commands[0].Accepted);
         Assert.Equal(1, resolution.Commands[0].Cost.CommandPoints);
-        Assert.Equal(1, resolution.Commands[0].Cost.Supplies);
+        var expectedSupplies = Engine.CommandEconomy.CalculatePathMovementCost(
+            state.Routes,
+            commands[0].RegionId!,
+            ((Engine.MoveCommandPayload)commands[0].Payload).PathRegionIds);
+        Assert.Equal(expectedSupplies, resolution.Commands[0].Cost.Supplies);
         Assert.False(resolution.Commands[1].Accepted);
         Assert.Contains("command points", resolution.Commands[1].RejectionReason);
-        Assert.Equal(state.Resources[Engine.Side.Axis].Supplies - 1, resolution.NextState.Resources[Engine.Side.Axis].Supplies);
+        Assert.Equal(state.Resources[Engine.Side.Axis].Supplies - expectedSupplies, resolution.NextState.Resources[Engine.Side.Axis].Supplies);
         Assert.Equal(1, resolution.NextState.Resources[Engine.Side.Axis].CommandPoints);
     }
 

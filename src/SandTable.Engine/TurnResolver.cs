@@ -29,6 +29,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
         var resolvedCommands = new List<ResolvedCommand>();
         var supportByRegion = new Dictionary<(Side Side, string RegionId), int>();
         var reconByRegion = new HashSet<(Side Side, string RegionId)>();
+        var preparedAttacks = new List<PreparedAttack>();
         var availableResources = startingState.Resources.ToDictionary(
             pair => pair.Key,
             pair => CommandEconomy.CreateTurnBudget(resolutionState, pair.Key));
@@ -62,7 +63,7 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             var resolvedCommand = command.CommandType switch
             {
                 OrderType.Move => ResolveMove(command, startingState, regions, units, events),
-                OrderType.Attack => ResolveAttack(command, startingState, regions, units, supportByRegion, reconByRegion, events, random),
+                OrderType.Attack => RegionalBattleResolver.PrepareAttack(command, liveState, regions, units, preparedAttacks),
                 OrderType.Resupply => ResolveResupply(command, startingState, regions, units, events),
                 OrderType.Recon => ResolveRecon(command, startingState, regions, units, reconByRegion, events),
                 OrderType.Support => ResolveSupport(command, regions, units, supportByRegion, events),
@@ -77,6 +78,16 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             }
             resolvedCommands.Add(resolvedCommand);
         }
+
+        RegionalBattleResolver.Resolve(
+            resolutionState,
+            preparedAttacks,
+            regions,
+            units,
+            supportByRegion,
+            reconByRegion,
+            events,
+            random);
 
         CaptureOccupiedRegions(regions, units);
         ApplySupplyLifecycle(resolutionState, regions, units, events);
@@ -249,48 +260,48 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
         Dictionary<string, UnitState> units,
         List<GameEvent> events)
     {
-        if (!TryGetUnitCommandContext(command, regions, units, out var unit, out var currentRegion, out var targetRegion, out var rejection))
+        if (!TryGetUnitCommandContext(command, regions, units, out var unit, out var currentRegion, out _, out var rejection))
         {
             return Reject(command, rejection);
         }
-
-        if (!startingState.Regions.First(region => region.Id == currentRegion.Id).AdjacentRegionIds.Contains(targetRegion.Id, StringComparer.Ordinal))
+        if (command.Payload is not MoveCommandPayload move)
         {
-            return Reject(command, $"Region '{targetRegion.Id}' is not adjacent to '{currentRegion.Id}'.");
+            return Reject(command, "Move command payload is invalid.");
+        }
+        if (!OperationalPathfinder.TryValidatePath(startingState, unit, move.FromRegionId, move.PathRegionIds, out var movementCost, out var pathError))
+        {
+            return Reject(command, pathError ?? "Move command path is invalid.");
         }
 
-        var movementCost = command.Payload is MoveCommandPayload move
-            ? CommandEconomy.CalculatePathMovementCost(startingState.Routes, move.FromRegionId, move.PathRegionIds)
-            : 0;
-        var movementAllowance = Math.Max(0,
-            unit.Movement
-            - CampaignModifierRules.Value(startingState, unit.Side, "tempoCost")
-            - (unit.SupplyStatus == UnitSupplyStatus.OutOfSupply ? 1 : 0));
-        if (movementCost > movementAllowance)
+        var contactRegionId = OperationalPathfinder.FirstEnemyContact(units, unit.Side, move.PathRegionIds);
+        var traversedPath = contactRegionId is null
+            ? move.PathRegionIds.ToArray()
+            : move.PathRegionIds.TakeWhile(regionId => regionId != contactRegionId).ToArray();
+        if (traversedPath.Length == 0)
         {
-            return Reject(command, $"Movement cost {movementCost} exceeds effective allowance {movementAllowance}.");
+            return Reject(command, $"Enemy contact at '{contactRegionId}' blocks movement. Use Attack instead.");
         }
 
-        var occupiedByEnemy = startingState.Units.Any(other =>
-            other.Side != unit.Side
-            && other.Side != Side.Neutral
-            && other.Status != UnitStatus.Destroyed
-            && other.RegionId == targetRegion.Id);
-
-        if (occupiedByEnemy)
-        {
-            return Reject(command, $"Region '{targetRegion.Id}' is occupied by enemy forces. Use Attack instead.");
-        }
+        var targetRegion = regions[traversedPath[^1]];
 
         units[unit.Id] = unit with
         {
             RegionId = targetRegion.Id,
-            Supply = Math.Max(0, unit.Supply - 1),
+            Supply = Math.Max(0, unit.Supply - Math.Max(1, movementCost / 2)),
             IsEntrenched = false
         };
 
-        var objectiveCaptured = targetRegion.Owner != unit.Side && targetRegion.VictoryPoints > 0;
-        regions[targetRegion.Id] = targetRegion with { Owner = unit.Side };
+        var capturedRegionIds = new List<string>();
+        foreach (var regionId in traversedPath)
+        {
+            var traversed = regions[regionId];
+            if (traversed.Owner != unit.Side)
+            {
+                capturedRegionIds.Add(regionId);
+                regions[regionId] = traversed with { Owner = unit.Side };
+            }
+        }
+        var objectiveCaptured = capturedRegionIds.Any(regionId => regions[regionId].VictoryPoints > 0);
         events.Add(new GameEvent(
             events.Count + 1,
             GameEventType.Movement,
@@ -298,13 +309,19 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             unit.Side,
             targetRegion.Id,
             unit.Id,
-            $"{unit.Name} moved to {targetRegion.Name}.",
+            contactRegionId is null
+                ? $"{unit.Name} moved to {targetRegion.Name}."
+                : $"{unit.Name} advanced to {targetRegion.Name} and stopped on contact.",
             new Dictionary<string, object?>
             {
                 ["fromRegionId"] = currentRegion.Id,
                 ["toRegionId"] = targetRegion.Id,
                 ["previousOwner"] = targetRegion.Owner.ToString(),
-                ["objectiveCaptured"] = objectiveCaptured
+                ["objectiveCaptured"] = objectiveCaptured,
+                ["pathRegionIds"] = traversedPath,
+                ["movementCost"] = movementCost,
+                ["contactRegionId"] = contactRegionId,
+                ["capturedRegionIds"] = capturedRegionIds.ToArray()
             }));
 
         return new ResolvedCommand(command, Accepted: true, RejectionReason: null, CommandEconomy.Zero);
@@ -491,7 +508,8 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
             Supply = Math.Min(10, unit.Supply + 4),
             Morale = Math.Min(10, unit.Morale + 1),
             SupplyStatus = UnitSupplyStatus.InSupply,
-            OutOfSupplyTurns = 0
+            OutOfSupplyTurns = 0,
+            Status = UnitStatus.Ready
         };
         events.Add(new GameEvent(
             events.Count + 1,
@@ -620,7 +638,8 @@ public sealed class TurnResolver(ITensionGenerator? tensionGenerator = null)
         units[unit.Id] = unit with
         {
             IsEntrenched = true,
-            Morale = Math.Min(10, unit.Morale + 1)
+            Morale = Math.Min(10, unit.Morale + 1),
+            Status = UnitStatus.Ready
         };
         events.Add(new GameEvent(
             events.Count + 1,

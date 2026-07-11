@@ -48,6 +48,18 @@ public class CommandValidatorTests
     }
 
     [Fact]
+    public void ValidateSubmitCommands_accepts_weighted_multi_node_path_within_allowance()
+    {
+        var state = CreateState();
+        var request = new SubmitCommandsRequest(
+        [
+            new SubmitCommandRequest(1, new MoveCommandPayload("axis-armour", "base", ["open-desert", "distant"]))
+        ]);
+
+        CommandValidator.ValidateSubmitCommands(state, Side.Axis, request);
+    }
+
+    [Fact]
     public void ValidateSubmitCommands_rejects_move_into_enemy_occupied_region()
     {
         var state = CreateState();
@@ -196,7 +208,8 @@ public class CommandValidatorTests
             ],
             [
                 new RouteState("base-frontline", "base", "frontline", "Road", 1, 0),
-                new RouteState("base-open", "base", "open-desert", "Track", 1, 1)
+                new RouteState("base-open", "base", "open-desert", "Track", 1, 1),
+                new RouteState("open-distant", "open-desert", "distant", "Track", 1, 1)
             ],
             [
                 new UnitState("axis-armour", "Axis Armour", Side.Axis, UnitType.Armour, "base", 10, 10, 3, 5, 4, 8, 8, 5, UnitStatus.Ready),

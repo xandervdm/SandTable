@@ -177,9 +177,14 @@ public static class CommandValidator
 
         var current = fromRegionId;
         var movementCost = 0;
+        var visited = new HashSet<string>(StringComparer.Ordinal) { fromRegionId };
         for (var index = 0; index < path.Count; index++)
         {
             var next = path[index];
+            if (!visited.Add(next))
+            {
+                AddError(errors, $"{prefix}.command.pathRegionIds[{index}]", $"Path revisits region '{next}'.");
+            }
             if (!regions.ContainsKey(next))
             {
                 AddError(errors, $"{prefix}.command.pathRegionIds[{index}]", $"Region '{next}' does not exist in the latest campaign state.");
@@ -200,10 +205,7 @@ public static class CommandValidator
 
         var movementAllowance = unit is null
             ? 0
-            : Math.Max(0,
-                unit.Movement
-                - CampaignModifierRules.Value(state, unit.Side, "tempoCost")
-                - (unit.SupplyStatus == UnitSupplyStatus.OutOfSupply ? 1 : 0));
+            : OperationalPathfinder.EffectiveMovement(state, unit);
         if (unit is not null && movementCost > movementAllowance)
         {
             AddError(errors, $"{prefix}.command.pathRegionIds", $"Path movement cost {movementCost} exceeds unit '{unit.Id}' effective allowance {movementAllowance}.");
@@ -211,12 +213,14 @@ public static class CommandValidator
 
         if (isMove && unit is not null)
         {
-            var destination = path[^1];
-            var occupiedByEnemy = state.Units.Any(other =>
-                other.Side != unit.Side && other.Side != Side.Neutral && other.Status != UnitStatus.Destroyed && other.RegionId == destination);
-            if (occupiedByEnemy)
+            var contact = path.FirstOrDefault(regionId => state.Units.Any(other =>
+                other.Side != unit.Side
+                && other.Side != Side.Neutral
+                && other.Status != UnitStatus.Destroyed
+                && other.RegionId == regionId));
+            if (contact is not null)
             {
-                AddError(errors, $"{prefix}.command.pathRegionIds", $"Destination '{destination}' is occupied by enemy forces. Use Attack instead.");
+                AddError(errors, $"{prefix}.command.pathRegionIds", $"Path contacts enemy forces at '{contact}'. Use Attack instead.");
             }
         }
     }

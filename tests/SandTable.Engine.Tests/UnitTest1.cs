@@ -37,7 +37,7 @@ public class NorthAfricaScenarioTests
                 1,
                 Engine.CommandSource.Human,
                 Engine.Side.Axis,
-                new Engine.MoveCommandPayload("15th-panzer", "tripoli", ["benghazi"]))
+                new Engine.MoveCommandPayload("15th-panzer", "tripoli", ["sirte", "ajdabiya", "benghazi"]))
         };
         var aiCommands = new Engine.BasicAiPlanner().Plan(startingState, Engine.Side.Allies);
 
@@ -54,7 +54,7 @@ public class NorthAfricaScenarioTests
         Assert.Contains(resolution.NextState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "benghazi");
         Assert.Contains(startingState.Units, unit => unit.Id == "15th-panzer" && unit.RegionId == "tripoli");
         var resolvedHumanCommand = Assert.Single(resolution.Commands, command => command.Command.Source == Engine.CommandSource.Human);
-        Assert.Equal(new Engine.Resources(1, 0, 1, 0, 1), resolvedHumanCommand.Cost);
+        Assert.Equal(new Engine.Resources(3, 0, 3, 0, 1), resolvedHumanCommand.Cost);
     }
 
     [Fact]
@@ -109,11 +109,13 @@ public class NorthAfricaScenarioTests
 
         var commands = new Engine.BasicAiPlanner().Plan(separatedState, Engine.Side.Allies);
 
-        Assert.Contains(commands, command =>
+        var advance = Assert.Single(commands, command =>
             command.CommandType == Engine.OrderType.Move
             && command.UnitId == "desert-air-wing"
-            && command.RegionId == "cairo"
-            && command.TargetRegionId == "alexandria");
+            && command.RegionId == "cairo");
+        Assert.Equal("tobruk", advance.TargetRegionId);
+        Assert.Equal(["alexandria", "el-alamein", "mersamatruh", "tobruk"],
+            ((Engine.MoveCommandPayload)advance.Payload).PathRegionIds);
     }
 
     private static async Task<(Engine.MapDefinition Map, Engine.ScenarioDefinition Scenario, Engine.UnitCatalog Units, Engine.ReserveCatalog Reserves)> LoadContentAsync()
