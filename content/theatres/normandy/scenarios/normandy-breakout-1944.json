@@ -1,0 +1,56 @@
+{
+  "scenarioId": "normandy-breakout-1944",
+  "theatreId": "normandy",
+  "name": "Normandy Breakout - 1944",
+  "startDate": "1944-06-13",
+  "maxTurns": 15,
+  "defaultSide": "Allies",
+  "startingResources": {
+    "Axis": { "supplies": 1050, "manpower": 760, "fuel": 300, "industry": 190, "commandPoints": 3 },
+    "Allies": { "supplies": 1350, "manpower": 980, "fuel": 520, "industry": 270, "commandPoints": 3 }
+  },
+  "commandCosts": {
+    "Move": { "baseCommandPoints": 1, "fixedSupplies": 0, "fixedFuel": 0, "suppliesPerMovementCost": 1, "fuelPerMovementCost": 1 },
+    "Attack": { "baseCommandPoints": 1, "fixedSupplies": 2, "fixedFuel": 1, "suppliesPerMovementCost": 1, "fuelPerMovementCost": 1 },
+    "Support": { "baseCommandPoints": 1, "fixedSupplies": 1, "fixedFuel": 0, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 },
+    "HoldPosition": { "baseCommandPoints": 0, "fixedSupplies": 0, "fixedFuel": 0, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 },
+    "Resupply": { "baseCommandPoints": 1, "fixedSupplies": 2, "fixedFuel": 0, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 },
+    "Recon": { "baseCommandPoints": 1, "fixedSupplies": 0, "fixedFuel": 1, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 },
+    "Deploy": { "baseCommandPoints": 1, "fixedSupplies": 0, "fixedFuel": 0, "suppliesPerMovementCost": 0, "fuelPerMovementCost": 0 }
+  },
+  "victoryRules": {
+    "outcomes": [
+      {
+        "id": "allied-breakout-victory",
+        "result": "Victory",
+        "priority": 1,
+        "allOf": [
+          { "type": "ControlAtLeast", "side": "Player", "regionIds": ["cherbourg", "caen", "saint-lo", "falaise"], "requiredCount": 3, "consecutiveTurns": 2 },
+          { "type": "SupplyConnected", "side": "Player", "sourceRegionIds": ["utah-beach", "omaha-beach", "gold-beach", "juno-beach"], "destinationRegionIds": ["saint-lo", "falaise"] },
+          { "type": "VictoryPointsAtLeast", "side": "Player", "threshold": 55 }
+        ]
+      },
+      {
+        "id": "axis-counterattack-victory",
+        "result": "Defeat",
+        "priority": 2,
+        "allOf": [
+          { "type": "ControlAtLeast", "side": "Enemy", "regionIds": ["utah-beach", "omaha-beach", "gold-beach", "juno-beach"], "requiredCount": 2, "consecutiveTurns": 2 },
+          { "type": "VictoryPointsAtLeast", "side": "Enemy", "threshold": 60 }
+        ]
+      },
+      {
+        "id": "normandy-turn-limit",
+        "result": "Draw",
+        "priority": 100,
+        "allOf": [{ "type": "TurnNumberAtLeast", "turnNumber": 15 }]
+      }
+    ]
+  },
+  "startingUnitIds": [
+    "us-4th-infantry", "us-1st-infantry", "british-50th-infantry", "canadian-3rd-infantry", "british-7th-armoured", "allied-tactical-air",
+    "german-91st-infantry", "german-352nd-infantry", "german-2nd-fallschirm", "german-21st-panzer", "german-12th-ss", "german-2nd-panzer"
+  ],
+  "reserveIds": ["panzer-lehr-reserve", "guards-armoured-reserve"],
+  "deploymentLimitPerSidePerTurn": 1
+}

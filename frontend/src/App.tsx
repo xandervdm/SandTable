@@ -17,6 +17,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Settings,
   Shield,
   Skull,
   Star,
@@ -84,6 +85,7 @@ export function App() {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [activeCampaignUid, setActiveCampaignUid] = useState<string | null>(null);
   const [scenarioContent, setScenarioContent] = useState<ScenarioContent | null>(null);
+  const [setupContent, setSetupContent] = useState<ScenarioContent | null>(null);
   const [campaignState, setCampaignState] = useState<CampaignStateResponse | null>(null);
   const [events, setEvents] = useState<CampaignEvent[]>([]);
   const [timeline, setTimeline] = useState<CampaignTimeline | null>(null);
@@ -95,6 +97,8 @@ export function App() {
   const [orderType, setOrderType] = useState<OrderType>("Move");
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [pendingDeployments, setPendingDeployments] = useState<PendingDeployment[]>([]);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [developerOpen, setDeveloperOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>("Loading command table");
   const [error, setError] = useState<string | null>(null);
 
@@ -125,7 +129,8 @@ export function App() {
         setSelectedScenarioId(scenario.scenarioId);
         setSelectedPlayerSide(scenario.defaultSide === "Allies" ? "Allies" : "Axis");
         const content = await client.loadScenarioContent(theatre.theatreId, scenario.scenarioId);
-        setScenarioContent(content);
+        setSetupContent(content);
+        setSetupOpen(true);
       }
     } catch (err) {
       setApiHealthy(false);
@@ -198,6 +203,7 @@ export function App() {
       const nextCampaigns = await client.listCampaigns();
       setCampaigns(nextCampaigns);
       await loadCampaign(detail.campaign);
+      setSetupOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create campaign.");
     } finally {
@@ -219,20 +225,20 @@ export function App() {
       setSelectedTheatreId(theatreId);
       setSelectedScenarioId(scenarioId);
       setSelectedPlayerSide(scenario.defaultSide === "Allies" ? "Allies" : "Axis");
-      setScenarioContent(content);
-      setCampaignState(null);
-      setActiveCampaignUid(null);
-      setEvents([]);
-      setTurns([]);
-      setTimeline(null);
-      setReplayEvent(null);
-      setPendingOrders([]);
-      setPendingDeployments([]);
+      setSetupContent(content);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load scenario.");
     } finally {
       setBusy(null);
     }
+  }
+
+  async function openSetup() {
+    setSetupOpen(true);
+    if (setupContent || busy) return;
+    const theatre = theatres.find((item) => item.theatreId === selectedTheatreId) ?? theatres[0];
+    const scenario = theatre?.scenarios.find((item) => item.scenarioId === selectedScenarioId) ?? theatre?.scenarios[0];
+    if (theatre && scenario) await selectScenario(theatre.theatreId, scenario.scenarioId);
   }
 
   function addPendingOrder() {
@@ -390,8 +396,7 @@ export function App() {
   const expandedStackUnits = campaignState?.units.filter(
     (unit) => unit.regionId === expandedStackRegionId && unit.status !== "Destroyed"
   ) ?? [];
-  const selectedTheatre = theatres.find((theatre) => theatre.theatreId === selectedTheatreId);
-  const selectedScenario = selectedTheatre?.scenarios.find((scenario) => scenario.scenarioId === selectedScenarioId);
+  const endTurnBlocker = resolveEndTurnBlocker(campaignState, currentTurnStatus, pendingOrders, pendingDeployments, busy);
 
   function selectUnit(unitId: string) {
     const clickedUnit = campaignState?.units.find((unit) => unit.id === unitId);
@@ -424,7 +429,7 @@ export function App() {
     <div className="app-shell">
       <header className="top-bar">
         <div className="brand-lockup">
-          <button className="icon-button" aria-label="Open menu">
+          <button className="icon-button" onClick={() => void openSetup()} disabled={Boolean(busy)} aria-label="Open campaign setup">
             <CircleDot size={22} />
           </button>
           <div>
@@ -468,12 +473,20 @@ export function App() {
               </option>
             ))}
           </select>
-          <button className="primary-button" onClick={createCampaign} disabled={Boolean(busy)}>
+          <button className="primary-button" onClick={() => void openSetup()} disabled={Boolean(busy)}>
             <Plus size={16} />
-            Campaign
+            New
           </button>
-          <button className="icon-button" onClick={refreshActiveCampaign} disabled={Boolean(busy)} aria-label="Refresh">
-            <RefreshCw size={18} />
+          <button
+            className="gold-button top-end-turn"
+            onClick={endTurn}
+            disabled={Boolean(endTurnBlocker)}
+            title={endTurnBlocker ?? "Submit orders and resolve the turn"}
+          >
+            End Turn
+          </button>
+          <button className="icon-button" onClick={() => setDeveloperOpen(true)} aria-label="Open diagnostics">
+            <Settings size={18} />
           </button>
         </div>
       </header>
@@ -481,7 +494,6 @@ export function App() {
       <main className="command-grid">
         <aside className="left-panel">
           <StatusPanel
-            apiHealthy={apiHealthy}
             campaignState={campaignState}
             scenarioContent={scenarioContent}
             selectedUnit={selectedUnit}
@@ -500,6 +512,10 @@ export function App() {
                 selectedUnitRegionId={selectedUnit?.regionId ?? null}
                 selectedTargetRegionId={selectedTargetRegionId}
                 validTargetIds={validTargetIds}
+                selectedPathRegionIds={selectedUnit && campaignState && selectedTargetRegionId && (orderType === "Move" || orderType === "Attack")
+                  ? resolveOperationalPaths(orderType, selectedUnit, campaignState)[selectedTargetRegionId] ?? []
+                  : []}
+                orderType={orderType}
                 plannedUnitIds={pendingOrders.map((order) => order.unitId)}
                 replayEvent={replayEvent}
                 onUnitSelect={selectUnit}
@@ -514,53 +530,10 @@ export function App() {
               <div className="empty-map">
                 <MapPin size={32} />
                 <strong>Command table awaiting campaign</strong>
-                <span>Choose a theatre, scenario, and command side.</span>
-                <div className="campaign-setup-controls">
-                  <label>
-                    <span>Theatre</span>
-                    <select
-                      aria-label="Theatre"
-                      value={selectedTheatreId}
-                      onChange={(event) => {
-                        const theatre = theatres.find((item) => item.theatreId === event.target.value);
-                        const scenario = theatre?.scenarios[0];
-                        if (theatre && scenario) {
-                          void selectScenario(theatre.theatreId, scenario.scenarioId);
-                        }
-                      }}
-                    >
-                      {theatres.map((theatre) => (
-                        <option key={theatre.theatreId} value={theatre.theatreId}>{theatre.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Scenario</span>
-                    <select
-                      aria-label="Scenario"
-                      value={selectedScenarioId}
-                      onChange={(event) => void selectScenario(selectedTheatreId, event.target.value)}
-                    >
-                      {selectedTheatre?.scenarios.map((scenario) => (
-                        <option key={scenario.scenarioId} value={scenario.scenarioId}>{scenario.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Side</span>
-                    <select
-                      aria-label="Player side"
-                      value={selectedPlayerSide}
-                      onChange={(event) => setSelectedPlayerSide(event.target.value as "Axis" | "Allies")}
-                    >
-                      <option value="Axis">Axis</option>
-                      <option value="Allies">Allies</option>
-                    </select>
-                  </label>
-                </div>
-                <button className="primary-button" onClick={createCampaign} disabled={Boolean(busy) || theatres.length === 0}>
+                <span>Open campaign setup to choose a theatre, scenario, and command side.</span>
+                <button className="primary-button" onClick={() => void openSetup()} disabled={Boolean(busy) || theatres.length === 0}>
                   <Plus size={16} />
-                  Start {selectedTheatre?.name ?? "Campaign"}
+                  Open Campaign Setup
                 </button>
               </div>
             )}
@@ -574,6 +547,14 @@ export function App() {
                 onClose={() => setExpandedStackRegionId(null)}
               />
             ) : null}
+            {scenarioContent && campaignState ? (
+              <div className="map-legend" aria-label="Map overlay legend">
+                <span><i className="legend-swatch axis" />Axis control</span>
+                <span><i className="legend-swatch allies" />Allied control</span>
+                <span><i className="legend-line front" />Front line</span>
+                <span><i className="legend-line supply" />Supply link</span>
+              </div>
+            ) : null}
           </div>
           <OrderDock
             orderType={orderType}
@@ -585,14 +566,16 @@ export function App() {
             currentTurnStatus={currentTurnStatus}
             pendingOrders={pendingOrders}
             pendingDeployments={pendingDeployments}
+            units={campaignState?.units.filter((unit) => unit.side === campaignState.campaign.playerSide && unit.status !== "Destroyed") ?? []}
+            selectedUnitId={selectedUnitId}
             busy={busy}
             onOrderChange={changeOrder}
             onTargetChange={setSelectedTargetRegionId}
+            onUnitSelect={selectUnit}
             onAddOrder={addPendingOrder}
             onRemoveOrder={removePendingOrder}
             onRemoveDeployment={(reserveId) => setPendingDeployments((items) => items.filter((item) => item.reserveId !== reserveId))}
             onClearOrders={() => { setPendingOrders([]); setPendingDeployments([]); }}
-            onEndTurn={endTurn}
           />
         </section>
 
@@ -618,8 +601,38 @@ export function App() {
 
       <footer className="footer-bar">
         <span>{busy ? <Loader2 className="spin" size={15} /> : <Star size={15} />} {busy ?? "Command profile ready"}</span>
-        <span>{error ? <strong className="error-text">{error}</strong> : "Runtime: HTTP adapter through /api proxy"}</span>
+        <span>{error ? <strong className="error-text">{error}</strong> : activeCampaign ? `${activeCampaign.name} · ${currentTurnStatus}` : "No active campaign"}</span>
       </footer>
+      {setupOpen ? (
+        <CampaignSetupDialog
+          theatres={theatres}
+          selectedTheatreId={selectedTheatreId}
+          selectedScenarioId={selectedScenarioId}
+          selectedPlayerSide={selectedPlayerSide}
+          content={setupContent}
+          busy={busy}
+          canClose={Boolean(activeCampaignUid)}
+          onTheatreChange={(theatreId) => {
+            const theatre = theatres.find((item) => item.theatreId === theatreId);
+            const scenario = theatre?.scenarios[0];
+            if (scenario) void selectScenario(theatreId, scenario.scenarioId);
+          }}
+          onScenarioChange={(scenarioId) => void selectScenario(selectedTheatreId, scenarioId)}
+          onSideChange={setSelectedPlayerSide}
+          onStart={createCampaign}
+          onClose={() => setSetupOpen(false)}
+        />
+      ) : null}
+      {developerOpen ? (
+        <DeveloperStatusDialog
+          apiHealthy={apiHealthy}
+          activeCampaignUid={activeCampaignUid}
+          theatreId={scenarioContent?.theatre.theatreId ?? null}
+          busy={busy}
+          onRefresh={refreshActiveCampaign}
+          onClose={() => setDeveloperOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -653,13 +666,11 @@ function ResourceStrip({ state }: { state: CampaignStateResponse | null }) {
 }
 
 function StatusPanel({
-  apiHealthy,
   campaignState,
   scenarioContent,
   selectedUnit,
   selectedRegion
 }: {
-  apiHealthy: boolean;
   campaignState: CampaignStateResponse | null;
   scenarioContent: ScenarioContent | null;
   selectedUnit: UnitState | null;
@@ -700,14 +711,6 @@ function StatusPanel({
           </p>
         </Panel>
       ) : null}
-
-      <Panel title="Status">
-        <div className="status-list">
-          <span>API <strong>{apiHealthy ? "Online" : "Offline"}</strong></span>
-          <span>Theatre <strong>{scenarioContent?.map.name ?? "Not loaded"}</strong></span>
-          <span>Scenario <strong>{scenarioContent?.scenario.name ?? "Awaiting campaign"}</strong></span>
-        </div>
-      </Panel>
 
       <Panel title="Selected Unit">
         {selectedUnit ? (
@@ -803,14 +806,16 @@ function OrderDock({
   currentTurnStatus,
   pendingOrders,
   pendingDeployments,
+  units,
+  selectedUnitId,
   busy,
   onOrderChange,
   onTargetChange,
+  onUnitSelect,
   onAddOrder,
   onRemoveOrder,
   onRemoveDeployment,
-  onClearOrders,
-  onEndTurn
+  onClearOrders
 }: {
   orderType: OrderType;
   selectedUnit: UnitState | null;
@@ -821,14 +826,16 @@ function OrderDock({
   currentTurnStatus: string;
   pendingOrders: PendingOrder[];
   pendingDeployments: PendingDeployment[];
+  units: UnitState[];
+  selectedUnitId: string | null;
   busy: string | null;
   onOrderChange(orderType: OrderType): void;
   onTargetChange(regionId: string | null): void;
+  onUnitSelect(unitId: string): void;
   onAddOrder(): void;
   onRemoveOrder(unitId: string): void;
   onRemoveDeployment(reserveId: string): void;
   onClearOrders(): void;
-  onEndTurn(): void;
 }) {
   const targetName = campaignState?.regions.find((region) => region.id === selectedTargetRegionId)?.name;
   const campaignResult = campaignState?.isComplete ? formatCampaignResult(campaignState.result) : null;
@@ -875,9 +882,6 @@ function OrderDock({
       (orderUsesCurrentRegion(orderType) || selectedTargetRegionId) &&
       canAffordDraft
   );
-  const endTurnBlocker = resolveEndTurnBlocker(campaignState, currentTurnStatus, pendingOrders, pendingDeployments, busy);
-  const canEndTurn = !endTurnBlocker;
-
   return (
     <div className="order-dock">
       <div className="order-buttons">
@@ -891,6 +895,25 @@ function OrderDock({
             {item.label}
           </button>
         ))}
+      </div>
+      <div className="unit-roster" aria-label="Available units">
+        <div className="unit-roster-heading">Available Units</div>
+        <div className="unit-roster-list">
+          {units.map((unit) => (
+            <button
+              key={unit.id}
+              className={unit.id === selectedUnitId ? "selected" : ""}
+              data-testid={`roster-unit-${unit.id}`}
+              onClick={() => onUnitSelect(unit.id)}
+              aria-pressed={unit.id === selectedUnitId}
+            >
+              <span className={`roster-code ${unit.side.toLowerCase()}`}>{unitCode(unit)}</span>
+              <strong>{unit.strength}</strong>
+              <small>{unit.name}</small>
+              <em>{formatSupplyStatus(unit)}</em>
+            </button>
+          ))}
+        </div>
       </div>
       <div className={campaignResult ? "order-summary campaign-complete-summary" : "order-summary"}>
         <strong>{campaignResult ? `Campaign ${campaignResult}` : selectedUnit?.name ?? "No unit selected"}</strong>
@@ -991,14 +1014,6 @@ function OrderDock({
       <button className="primary-button" onClick={onAddOrder} disabled={!canAdd}>
         <Play size={16} />
         {existingOrder ? "Update" : "Add"}
-      </button>
-      <button
-        className="gold-button"
-        onClick={onEndTurn}
-        disabled={!canEndTurn}
-        title={endTurnBlocker ?? "Submit orders and resolve the turn"}
-      >
-        End Turn
       </button>
     </div>
   );
@@ -1334,6 +1349,124 @@ function timelineMarkerIcon(markerType: CampaignTimeline["points"][number]["mark
   if (markerType === "Deployment") return <Users size={11} />;
   if (markerType === "Tension") return <Zap size={11} />;
   return <Trophy size={11} />;
+}
+
+function CampaignSetupDialog({
+  theatres,
+  selectedTheatreId,
+  selectedScenarioId,
+  selectedPlayerSide,
+  content,
+  busy,
+  canClose,
+  onTheatreChange,
+  onScenarioChange,
+  onSideChange,
+  onStart,
+  onClose
+}: {
+  theatres: TheatreSummary[];
+  selectedTheatreId: string;
+  selectedScenarioId: string;
+  selectedPlayerSide: "Axis" | "Allies";
+  content: ScenarioContent | null;
+  busy: string | null;
+  canClose: boolean;
+  onTheatreChange(theatreId: string): void;
+  onScenarioChange(scenarioId: string): void;
+  onSideChange(side: "Axis" | "Allies"): void;
+  onStart(): void;
+  onClose(): void;
+}) {
+  const selectedTheatre = theatres.find((theatre) => theatre.theatreId === selectedTheatreId);
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="campaign-setup-dialog" role="dialog" aria-modal="true" aria-labelledby="campaign-setup-title">
+        <header>
+          <div>
+            <span>Operational Command</span>
+            <h1 id="campaign-setup-title">Start a Campaign</h1>
+          </div>
+          {canClose ? <button className="icon-button" onClick={onClose} aria-label="Close campaign setup"><X size={18} /></button> : null}
+        </header>
+        <div className="theatre-choice-grid" aria-label="Theatres">
+          {theatres.map((theatre) => (
+            <button
+              key={theatre.theatreId}
+              className={theatre.theatreId === selectedTheatreId ? "selected" : ""}
+              onClick={() => onTheatreChange(theatre.theatreId)}
+              aria-pressed={theatre.theatreId === selectedTheatreId}
+            >
+              <MapPin size={20} />
+              <strong>{theatre.name}</strong>
+              <span>{theatre.scenarios.length} scenario{theatre.scenarios.length === 1 ? "" : "s"}</span>
+            </button>
+          ))}
+        </div>
+        <div className="setup-detail-grid">
+          <div className="setup-preview">
+            {content?.display?.backgroundImage.url ? (
+              <img src={content.display.backgroundImage.url} alt={`${content.map.name} campaign map preview`} />
+            ) : <MapPin size={36} />}
+            <div>
+              <strong>{content?.scenario.name ?? "Loading scenario"}</strong>
+              <span>{content ? `${content.map.regions.length} positions · ${content.map.routes.length} routes · ${content.scenario.maxTurns} turns` : "Reading theatre package"}</span>
+            </div>
+          </div>
+          <div className="setup-fields">
+            <label>
+              <span>Scenario</span>
+              <select aria-label="Scenario" value={selectedScenarioId} onChange={(event) => onScenarioChange(event.target.value)}>
+                {selectedTheatre?.scenarios.map((scenario) => <option key={scenario.scenarioId} value={scenario.scenarioId}>{scenario.name}</option>)}
+              </select>
+            </label>
+            <fieldset>
+              <legend>Command side</legend>
+              <label><input type="radio" name="command-side" checked={selectedPlayerSide === "Axis"} onChange={() => onSideChange("Axis")} /> Axis</label>
+              <label><input type="radio" name="command-side" checked={selectedPlayerSide === "Allies"} onChange={() => onSideChange("Allies")} /> Allies</label>
+            </fieldset>
+            <button className="gold-button setup-start" onClick={onStart} disabled={Boolean(busy) || !content}>
+              <Play size={16} /> {busy ?? "Begin Campaign"}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DeveloperStatusDialog({
+  apiHealthy,
+  activeCampaignUid,
+  theatreId,
+  busy,
+  onRefresh,
+  onClose
+}: {
+  apiHealthy: boolean;
+  activeCampaignUid: string | null;
+  theatreId: string | null;
+  busy: string | null;
+  onRefresh(): void;
+  onClose(): void;
+}) {
+  return (
+    <div className="modal-backdrop diagnostics-backdrop" role="presentation">
+      <section className="developer-dialog" role="dialog" aria-modal="true" aria-labelledby="diagnostics-title">
+        <header>
+          <div><span>Developer tools</span><h1 id="diagnostics-title">Runtime Diagnostics</h1></div>
+          <button className="icon-button" onClick={onClose} aria-label="Close diagnostics"><X size={18} /></button>
+        </header>
+        <dl>
+          <dt>API</dt><dd className={apiHealthy ? "healthy" : "unhealthy"}>{apiHealthy ? "Online" : "Offline"}</dd>
+          <dt>Adapter</dt><dd>HTTP through /api proxy</dd>
+          <dt>Theatre</dt><dd>{theatreId ?? "None"}</dd>
+          <dt>Campaign UID</dt><dd>{activeCampaignUid ?? "None"}</dd>
+        </dl>
+        <button className="primary-button" onClick={onRefresh} disabled={Boolean(busy)}><RefreshCw size={16} /> {busy ?? "Refresh runtime state"}</button>
+      </section>
+    </div>
+  );
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {

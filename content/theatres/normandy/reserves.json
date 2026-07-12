@@ -1,0 +1,24 @@
+{
+  "reserves": [
+    {
+      "reserveId": "panzer-lehr-reserve",
+      "unitId": "panzer-lehr-reserve",
+      "side": "Axis",
+      "availableTurn": 2,
+      "cost": { "supplies": 5, "manpower": 4, "fuel": 4, "industry": 0, "commandPoints": 0 },
+      "eligibleRegionIds": ["caen", "falaise", "argentan"],
+      "requiredRegionFeatures": ["City"],
+      "scenarioIds": ["normandy-breakout-1944"]
+    },
+    {
+      "reserveId": "guards-armoured-reserve",
+      "unitId": "guards-armoured-reserve",
+      "side": "Allies",
+      "availableTurn": 3,
+      "cost": { "supplies": 5, "manpower": 4, "fuel": 4, "industry": 0, "commandPoints": 0 },
+      "eligibleRegionIds": ["utah-beach", "omaha-beach", "gold-beach", "juno-beach"],
+      "requiredRegionFeatures": ["Port"],
+      "scenarioIds": ["normandy-breakout-1944"]
+    }
+  ]
+}

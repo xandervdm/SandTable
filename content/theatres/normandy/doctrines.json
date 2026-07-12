@@ -1,0 +1,7 @@
+{
+  "doctrines": [
+    { "id": "allied-combined-arms", "name": "Allied Combined Arms", "modifiers": { "attack": 1, "recon": 1 } },
+    { "id": "german-mobile-defence", "name": "German Mobile Defence", "modifiers": { "defence": 1, "fuelReserve": 1 } },
+    { "id": "bocage-infiltration", "name": "Bocage Infiltration", "modifiers": { "supplyDiscipline": 1 } }
+  ]
+}

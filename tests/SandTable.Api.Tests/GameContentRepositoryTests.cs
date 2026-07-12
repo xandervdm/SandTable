@@ -7,18 +7,25 @@ namespace SandTable.Api.Tests;
 public class GameContentRepositoryTests
 {
     [Fact]
-    public async Task ListTheatresAsync_returns_north_africa_scenario_summary()
+    public async Task ListTheatresAsync_returns_all_manifest_driven_scenario_summaries()
     {
         var repository = CreateRepository();
 
         var theatres = await repository.ListTheatresAsync();
 
-        var theatre = Assert.Single(theatres);
-        Assert.Equal("north-africa", theatre.TheatreId);
-        Assert.Equal("North Africa", theatre.Name);
-        var scenario = Assert.Single(theatre.Scenarios);
-        Assert.Equal("north-africa-1942", scenario.ScenarioId);
-        Assert.Equal(new DateOnly(1942, 6, 12), scenario.StartDate);
+        Assert.Equal(2, theatres.Count);
+
+        var northAfrica = Assert.Single(theatres, theatre => theatre.TheatreId == "north-africa");
+        Assert.Equal("North Africa", northAfrica.Name);
+        var northAfricaScenario = Assert.Single(northAfrica.Scenarios);
+        Assert.Equal("north-africa-1942", northAfricaScenario.ScenarioId);
+        Assert.Equal(new DateOnly(1942, 6, 12), northAfricaScenario.StartDate);
+
+        var normandy = Assert.Single(theatres, theatre => theatre.TheatreId == "normandy");
+        Assert.Equal("Normandy", normandy.Name);
+        var normandyScenario = Assert.Single(normandy.Scenarios);
+        Assert.Equal("normandy-breakout-1944", normandyScenario.ScenarioId);
+        Assert.Equal(new DateOnly(1944, 6, 13), normandyScenario.StartDate);
     }
 
     [Fact]
@@ -37,6 +44,22 @@ public class GameContentRepositoryTests
         Assert.NotNull(content.Display);
         Assert.Equal("/theatres/north-africa/assets/map-base.png", content.Display.BackgroundImage.Url);
         Assert.True(content.Display.Regions.ContainsKey("gazala"));
+    }
+
+    [Fact]
+    public async Task LoadScenarioContentAsync_loads_second_theatre_without_application_changes()
+    {
+        var repository = CreateRepository();
+
+        var content = await repository.LoadScenarioContentAsync("normandy", "normandy-breakout-1944");
+
+        Assert.Equal("normandy", content.Map.TheatreId);
+        Assert.Equal("normandy-breakout-1944", content.Scenario.ScenarioId);
+        Assert.Contains(content.Units.Units, unit => unit.Id == "us-4th-infantry");
+        Assert.Contains(content.Reserves.Reserves, reserve => reserve.ReserveId == "panzer-lehr-reserve");
+        Assert.Contains(content.TensionCards.Cards, card => card.Id == "bocage-resistance");
+        Assert.Equal("/theatres/normandy/assets/map-base.png", content.Display!.BackgroundImage.Url);
+        Assert.True(content.Display.Regions.ContainsKey("caen"));
     }
 
     [Fact]

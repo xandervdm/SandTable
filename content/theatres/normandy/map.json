@@ -1,0 +1,42 @@
+{
+  "theatreId": "normandy",
+  "name": "Normandy",
+  "coordinateSystem": { "width": 1536, "height": 1024 },
+  "regions": [
+    { "id": "cherbourg", "name": "Cherbourg", "kind": "PrimaryObjective", "position": { "x": 235, "y": 225 }, "terrain": "City", "owner": "Axis", "victoryPoints": 10, "supplyValue": 3, "features": ["Port", "City", "Fortified"] },
+    { "id": "utah-beach", "name": "Utah Beach", "kind": "EntryPoint", "position": { "x": 430, "y": 330 }, "terrain": "Coast", "owner": "Allies", "victoryPoints": 4, "supplyValue": 3, "features": ["Port"] },
+    { "id": "sainte-mere-eglise", "name": "Sainte-Mere-Eglise", "kind": "OperationalPosition", "position": { "x": 430, "y": 455 }, "terrain": "Bocage", "owner": "Allies", "victoryPoints": 4, "supplyValue": 0, "features": [] },
+    { "id": "omaha-beach", "name": "Omaha Beach", "kind": "EntryPoint", "position": { "x": 655, "y": 335 }, "terrain": "Coast", "owner": "Allies", "victoryPoints": 5, "supplyValue": 3, "features": ["Port"] },
+    { "id": "carentan", "name": "Carentan", "kind": "Objective", "position": { "x": 570, "y": 500 }, "terrain": "Marsh", "owner": "Axis", "victoryPoints": 6, "supplyValue": 1, "features": ["City"] },
+    { "id": "bayeux", "name": "Bayeux", "kind": "Objective", "position": { "x": 785, "y": 455 }, "terrain": "Bocage", "owner": "Allies", "victoryPoints": 6, "supplyValue": 1, "features": ["City"] },
+    { "id": "gold-beach", "name": "Gold Beach", "kind": "EntryPoint", "position": { "x": 835, "y": 325 }, "terrain": "Coast", "owner": "Allies", "victoryPoints": 4, "supplyValue": 3, "features": ["Port"] },
+    { "id": "juno-beach", "name": "Juno Beach", "kind": "EntryPoint", "position": { "x": 985, "y": 315 }, "terrain": "Coast", "owner": "Allies", "victoryPoints": 4, "supplyValue": 3, "features": ["Port"] },
+    { "id": "caen", "name": "Caen", "kind": "PrimaryObjective", "position": { "x": 1055, "y": 465 }, "terrain": "City", "owner": "Axis", "victoryPoints": 12, "supplyValue": 2, "features": ["City", "Railroad", "Fortified"] },
+    { "id": "saint-lo", "name": "Saint-Lo", "kind": "PrimaryObjective", "position": { "x": 690, "y": 650 }, "terrain": "Bocage", "owner": "Axis", "victoryPoints": 10, "supplyValue": 2, "features": ["City", "SupplyDepot"] },
+    { "id": "villers-bocage", "name": "Villers-Bocage", "kind": "OperationalPosition", "position": { "x": 875, "y": 605 }, "terrain": "Bocage", "owner": "Axis", "victoryPoints": 5, "supplyValue": 0, "features": ["Fortified"] },
+    { "id": "falaise", "name": "Falaise", "kind": "PrimaryObjective", "position": { "x": 1075, "y": 705 }, "terrain": "Rough", "owner": "Axis", "victoryPoints": 10, "supplyValue": 1, "features": ["City"] },
+    { "id": "avranches", "name": "Avranches", "kind": "Objective", "position": { "x": 545, "y": 825 }, "terrain": "Bocage", "owner": "Axis", "victoryPoints": 7, "supplyValue": 1, "features": ["City"] },
+    { "id": "argentan", "name": "Argentan", "kind": "Objective", "position": { "x": 1100, "y": 860 }, "terrain": "Rough", "owner": "Axis", "victoryPoints": 7, "supplyValue": 1, "features": ["City", "Railroad"] }
+  ],
+  "routes": [
+    { "id": "cherbourg-utah", "fromRegionId": "cherbourg", "toRegionId": "utah-beach", "routeType": "CoastalRoad", "movementCost": 2, "supplyCost": 1 },
+    { "id": "utah-sainte-mere", "fromRegionId": "utah-beach", "toRegionId": "sainte-mere-eglise", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "sainte-mere-carentan", "fromRegionId": "sainte-mere-eglise", "toRegionId": "carentan", "routeType": "BocageRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "omaha-carentan", "fromRegionId": "omaha-beach", "toRegionId": "carentan", "routeType": "BocageRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "omaha-bayeux", "fromRegionId": "omaha-beach", "toRegionId": "bayeux", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "gold-bayeux", "fromRegionId": "gold-beach", "toRegionId": "bayeux", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "juno-caen", "fromRegionId": "juno-beach", "toRegionId": "caen", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "bayeux-caen", "fromRegionId": "bayeux", "toRegionId": "caen", "routeType": "CoastalRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "carentan-saint-lo", "fromRegionId": "carentan", "toRegionId": "saint-lo", "routeType": "BocageRoad", "movementCost": 2, "supplyCost": 1 },
+    { "id": "bayeux-saint-lo", "fromRegionId": "bayeux", "toRegionId": "saint-lo", "routeType": "BocageRoad", "movementCost": 2, "supplyCost": 1 },
+    { "id": "bayeux-villers", "fromRegionId": "bayeux", "toRegionId": "villers-bocage", "routeType": "BocageRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "caen-villers", "fromRegionId": "caen", "toRegionId": "villers-bocage", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "villers-saint-lo", "fromRegionId": "villers-bocage", "toRegionId": "saint-lo", "routeType": "BocageRoad", "movementCost": 1, "supplyCost": 1 },
+    { "id": "villers-falaise", "fromRegionId": "villers-bocage", "toRegionId": "falaise", "routeType": "OperationalRoute", "movementCost": 1, "supplyCost": 1 },
+    { "id": "caen-falaise", "fromRegionId": "caen", "toRegionId": "falaise", "routeType": "Railroad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "saint-lo-avranches", "fromRegionId": "saint-lo", "toRegionId": "avranches", "routeType": "BocageRoad", "movementCost": 2, "supplyCost": 1 },
+    { "id": "saint-lo-falaise", "fromRegionId": "saint-lo", "toRegionId": "falaise", "routeType": "OperationalRoute", "movementCost": 2, "supplyCost": 1 },
+    { "id": "falaise-argentan", "fromRegionId": "falaise", "toRegionId": "argentan", "routeType": "Railroad", "movementCost": 1, "supplyCost": 0 },
+    { "id": "avranches-argentan", "fromRegionId": "avranches", "toRegionId": "argentan", "routeType": "OperationalRoute", "movementCost": 2, "supplyCost": 1 }
+  ]
+}

@@ -22,6 +22,33 @@ const tensionCards = readContent("tension-cards.json");
 const assets = readContent("map-assets.json");
 const manifest = readContent("theatre.json");
 
+function readTheatreContent(theatreId: string, scenarioFile: string) {
+  const root = path.resolve(process.cwd(), "..", "content", "theatres", theatreId);
+  const read = (fileName: string) => JSON.parse(readFileSync(path.join(root, fileName), "utf8"));
+  const theatreDisplay = read("map-display.json");
+  const theatreManifest = read("theatre.json");
+  return {
+    manifest: theatreManifest,
+    map: read("map.json"),
+    display: {
+      ...theatreDisplay,
+      backgroundImage: {
+        url: `/theatres/${theatreId}/assets/map-base.png`,
+        fit: theatreDisplay.backgroundImage.fit
+      }
+    },
+    scenario: read(`scenarios/${scenarioFile}`),
+    units: read("units.json"),
+    reserves: read("reserves.json"),
+    doctrines: read("doctrines.json"),
+    events: read("events.json"),
+    tensionCards: read("tension-cards.json"),
+    assets: read("map-assets.json")
+  };
+}
+
+const normandyContent = readTheatreContent("normandy", "normandy-breakout-1944.json");
+
 const campaign = {
   campaignUid: "phase-1-regression",
   name: "Phase 1 Regression Campaign",
@@ -68,6 +95,51 @@ const state = {
   isComplete: false,
   result: null
 };
+
+function createCampaignState(content: typeof normandyContent, uid: string) {
+  const playerSide = content.scenario.defaultSide;
+  const enemySide = playerSide === "Axis" ? "Allies" : "Axis";
+  const theatreCampaign = {
+    campaignUid: uid,
+    name: `${content.map.name} Visual Smoke`,
+    theatreId: content.map.theatreId,
+    scenarioId: content.scenario.scenarioId,
+    playerSide,
+    enemySide,
+    status: "Active",
+    currentTurnNumber: 1,
+    maxTurns: content.scenario.maxTurns,
+    currentCampaignDate: content.scenario.startDate,
+    result: null,
+    score: null
+  };
+  return {
+    campaign: theatreCampaign,
+    snapshotUid: `${uid}-snapshot`,
+    turnNumber: 1,
+    campaignDate: content.scenario.startDate,
+    resources: content.scenario.startingResources,
+    regions: content.map.regions.map(({ position: _position, ...region }: { position: unknown; id: string }) => ({
+      ...region,
+      adjacentRegionIds: content.map.routes.flatMap((route: { fromRegionId: string; toRegionId: string }) =>
+        route.fromRegionId === region.id ? [route.toRegionId] : route.toRegionId === region.id ? [route.fromRegionId] : [])
+    })),
+    routes: content.map.routes,
+    units: content.units.units
+      .filter((unit: { id: string }) => content.scenario.startingUnitIds.includes(unit.id))
+      .map((unit: Record<string, unknown>) => ({ ...unit, supplyStatus: "InSupply", outOfSupplyTurns: 0, isEntrenched: false })),
+    reserves: [],
+    victoryProgress: {},
+    scenarioEventHistory: [],
+    activeTensions: [],
+    tensionHistory: [],
+    campaignModifiers: [],
+    isComplete: false,
+    result: null
+  };
+}
+
+const normandyState = createCampaignState(normandyContent, "phase-8-normandy");
 
 const viewports = [
   { width: 1280, height: 720 },
@@ -135,6 +207,48 @@ for (const viewport of viewports) {
     expect(browserMessages).toEqual([]);
   });
 }
+
+for (const viewport of viewports) {
+  test(`Phase 8 renders the content-only Normandy theatre at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockApi(page, { activeTheatre: "normandy" });
+
+    const backgroundResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/theatres/normandy/assets/map-base.png") && response.ok()
+    );
+    await page.goto("/");
+    await backgroundResponse;
+
+    await expect(page.getByRole("img", { name: "Normandy theatre map" })).toBeVisible();
+    await expect(page.getByTestId("roster-unit-us-4th-infantry")).toBeVisible();
+    await expect(page.getByLabel("Map overlay legend")).toContainText("Front line");
+    await page.screenshot({ animations: "disabled" });
+    const screenshot = await page.screenshot({ animations: "disabled" });
+    expect(screenshot).toMatchSnapshot(`phase-8-normandy-${viewport.width}x${viewport.height}.png`, {
+      maxDiffPixelRatio: 0.01
+    });
+  });
+}
+
+test("Phase 8 setup discovers both theatres and keyboard roster selection remains accessible", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockApi(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "New" }).click();
+  const setup = page.getByRole("dialog", { name: "Start a Campaign" });
+  await expect(setup).toBeVisible();
+  await expect(setup.getByRole("button", { name: /North Africa/ })).toBeVisible();
+  await setup.getByRole("button", { name: /Normandy/ }).click();
+  await expect(setup.getByText("Normandy", { exact: true }).last()).toBeVisible();
+  await setup.getByRole("button", { name: "Close campaign setup" }).click();
+
+  const rosterUnit = page.getByTestId("roster-unit-21st-panzer");
+  await rosterUnit.focus();
+  await page.keyboard.press("Enter");
+  await expect(rosterUnit).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".unit-detail")).toContainText("21st Panzer Division");
+});
 
 test("Phase 4 command log groups actors, filters battles, and replays persisted events", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -307,8 +421,12 @@ async function mockApi(page: Page, options: {
   campaignEvents?: unknown[];
   timeline?: unknown;
   campaignState?: typeof state;
+  activeTheatre?: "north-africa" | "normandy";
   onSubmit?: (body: { commands?: Array<{ command: Record<string, unknown> }> }) => void;
 } = {}) {
+  const activeContent = options.activeTheatre === "normandy" ? normandyContent : null;
+  const activeState = (options.campaignState ?? (activeContent ? normandyState : state)) as typeof state;
+  const activeCampaign = activeState.campaign;
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const pathname = url.pathname;
@@ -328,6 +446,17 @@ async function mockApi(page: Page, options: {
             startDate: scenario.startDate,
             maxTurns: scenario.maxTurns,
             defaultSide: scenario.defaultSide
+          }]
+        }, {
+          theatreId: normandyContent.map.theatreId,
+          name: normandyContent.map.name,
+          scenarios: [{
+            scenarioId: normandyContent.scenario.scenarioId,
+            theatreId: normandyContent.scenario.theatreId,
+            name: normandyContent.scenario.name,
+            startDate: normandyContent.scenario.startDate,
+            maxTurns: normandyContent.scenario.maxTurns,
+            defaultSide: normandyContent.scenario.defaultSide
           }]
         }]
       });
@@ -360,30 +489,57 @@ async function mockApi(page: Page, options: {
       });
       return;
     }
+    if (pathname === `/api/content/theatres/${normandyContent.map.theatreId}/scenarios/${normandyContent.scenario.scenarioId}`) {
+      await route.fulfill({
+        json: {
+          theatre: {
+            contractVersion: normandyContent.manifest.contractVersion,
+            theatreId: normandyContent.manifest.theatreId,
+            name: normandyContent.manifest.name,
+            defaultScenarioId: normandyContent.manifest.defaultScenarioId
+          },
+          map: normandyContent.map,
+          display: normandyContent.display,
+          scenario: normandyContent.scenario,
+          units: normandyContent.units,
+          reserves: normandyContent.reserves,
+          doctrines: normandyContent.doctrines,
+          events: normandyContent.events,
+          tensionCards: normandyContent.tensionCards,
+          assets: {
+            assets: normandyContent.assets.assets.map((asset: { file: string }) => ({
+              ...asset,
+              url: `/theatres/${normandyContent.manifest.theatreId}/${asset.file}`
+            }))
+          }
+        }
+      });
+      return;
+    }
     if (pathname === "/api/campaigns") {
-      await route.fulfill({ json: [campaign] });
+      await route.fulfill({ json: [activeCampaign] });
       return;
     }
-    if (pathname === `/api/campaigns/${campaign.campaignUid}/state`) {
-      await route.fulfill({ json: options.campaignState ?? state });
+    if (pathname === `/api/campaigns/${activeCampaign.campaignUid}/state`) {
+      await route.fulfill({ json: activeState });
       return;
     }
-    if (pathname === `/api/campaigns/${campaign.campaignUid}/commands` && route.request().method() === "POST") {
+    if (pathname === `/api/campaigns/${activeCampaign.campaignUid}/commands` && route.request().method() === "POST") {
       options.onSubmit?.(route.request().postDataJSON());
       await route.fulfill({ json: { accepted: true } });
       return;
     }
-    if (pathname === `/api/campaigns/${campaign.campaignUid}/resolve-turn` && route.request().method() === "POST") {
+    if (pathname === `/api/campaigns/${activeCampaign.campaignUid}/resolve-turn` && route.request().method() === "POST") {
       await route.fulfill({ json: { resolved: true } });
       return;
     }
-    if (pathname === `/api/campaigns/${campaign.campaignUid}/events`) {
+    if (pathname === `/api/campaigns/${activeCampaign.campaignUid}/events`) {
       await route.fulfill({ json: options.campaignEvents ?? [] });
       return;
     }
-    if (pathname === `/api/campaigns/${campaign.campaignUid}/timeline`) {
+    if (pathname === `/api/campaigns/${activeCampaign.campaignUid}/timeline`) {
       const metrics = (side: "Axis" | "Allies") => {
-        const sideUnits = state.units.filter((unit: { side: string }) => unit.side === side);
+        const sideUnits = activeState.units.filter((unit: { side: string }) => unit.side === side);
         const activeUnits = sideUnits.filter((unit: { status: string; strength: number }) => unit.status !== "Destroyed" && unit.strength > 0);
         const survivingStrength = activeUnits.reduce((total: number, unit: { strength: number }) => total + unit.strength, 0);
         const maximumStrength = sideUnits.reduce((total: number, unit: { maxStrength: number }) => total + unit.maxStrength, 0);
@@ -394,28 +550,28 @@ async function mockApi(page: Page, options: {
           activeUnitCount: activeUnits.length,
           destroyedUnitCount: sideUnits.length - activeUnits.length,
           outOfSupplyUnitCount: 0,
-          controlledVictoryPoints: state.regions.filter((region: { owner: string }) => region.owner === side)
+          controlledVictoryPoints: activeState.regions.filter((region: { owner: string }) => region.owner === side)
             .reduce((total: number, region: { victoryPoints: number }) => total + region.victoryPoints, 0),
           averageSupply: 0,
           averageMorale: 0
         };
       };
       await route.fulfill({ json: options.timeline ?? {
-        campaignUid: campaign.campaignUid,
-        playerSide: "Axis",
-        enemySide: "Allies",
+        campaignUid: activeCampaign.campaignUid,
+        playerSide: activeCampaign.playerSide,
+        enemySide: activeCampaign.enemySide,
         points: [{
-          snapshotUid: state.snapshotUid,
+          snapshotUid: activeState.snapshotUid,
           turnNumber: 1,
           resolvedTurnNumber: null,
-          campaignDate: state.campaignDate,
+          campaignDate: activeState.campaignDate,
           sides: { Axis: metrics("Axis"), Allies: metrics("Allies") },
           markers: []
         }]
       } });
       return;
     }
-    if (pathname === `/api/campaigns/${campaign.campaignUid}/turns`) {
+    if (pathname === `/api/campaigns/${activeCampaign.campaignUid}/turns`) {
       await route.fulfill({
         json: [{
           campaignTurnUid: "phase-1-turn",

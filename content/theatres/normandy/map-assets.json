@@ -1,0 +1,14 @@
+{
+  "assets": [
+    {
+      "assetId": "map-base",
+      "file": "assets/map-base.png",
+      "origin": "OpenAI generated project artwork",
+      "source": "Phase 8 Normandy theatre map",
+      "createdDate": "2026-07-11",
+      "license": "Project asset",
+      "attribution": "SandTable / OpenAI",
+      "intendedUse": "Normandy theatre map background"
+    }
+  ]
+}

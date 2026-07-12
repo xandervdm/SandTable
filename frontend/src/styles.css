@@ -57,7 +57,7 @@ button:disabled {
 
 .top-bar {
   display: grid;
-  grid-template-columns: minmax(190px, 240px) 100px minmax(390px, 1fr) minmax(236px, 280px);
+  grid-template-columns: minmax(190px, 240px) 100px minmax(390px, 1fr) minmax(390px, 440px);
   align-items: stretch;
   gap: 0;
   border-width: 0 0 1px;
@@ -142,6 +142,12 @@ button:disabled {
   gap: 8px;
   padding: 8px;
   border-right: 0;
+}
+
+.top-end-turn {
+  min-width: 108px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .campaign-select {
@@ -378,6 +384,45 @@ button:disabled {
   outline: none;
 }
 
+.map-legend {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  max-width: calc(100% - 28px);
+  padding: 7px 10px;
+  border: 1px solid rgba(203, 177, 111, 0.34);
+  border-radius: 4px;
+  background: rgba(16, 18, 17, 0.88);
+  color: #ddd2b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-swatch,
+.legend-line {
+  display: inline-block;
+  width: 14px;
+  height: 6px;
+}
+
+.legend-swatch.axis { background: rgba(178, 72, 52, 0.82); }
+.legend-swatch.allies { background: rgba(63, 118, 169, 0.82); }
+.legend-line.front { border-top: 3px solid #e45445; }
+.legend-line.supply { border-top: 2px dashed #d7b45a; }
+
 .empty-map {
   min-height: 0;
   height: 100%;
@@ -546,15 +591,97 @@ button:disabled {
 .order-dock {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(190px, 0.9fr) minmax(125px, 0.55fr) minmax(160px, 1fr) 110px;
-  grid-template-areas:
-    "orders summary tray submit"
-    "orders summary tray endturn"
-    "orders summary tray endturn";
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.25fr) minmax(130px, 0.6fr) minmax(150px, 0.8fr) 88px;
+  grid-template-areas: "orders roster summary tray submit";
   gap: 9px;
   align-items: center;
   padding: 8px 10px;
   border-width: 1px 0 0;
+}
+
+.unit-roster {
+  grid-area: roster;
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 22px minmax(0, 1fr);
+  border: 1px solid #4a4438;
+  border-radius: 6px;
+  background: rgba(10, 12, 11, 0.48);
+}
+
+.unit-roster-heading {
+  padding: 4px 8px;
+  color: #d4c49b;
+  border-bottom: 1px solid #443f34;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.unit-roster-list {
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  overflow-x: auto;
+}
+
+.unit-roster-list button {
+  position: relative;
+  flex: 0 0 62px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: 1fr auto;
+  align-items: center;
+  padding: 5px;
+  color: #17140d;
+  border: 2px solid #6f603d;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #c9b06c, #91753e);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28);
+}
+
+.unit-roster-list button.selected {
+  border-color: #fff0ad;
+  box-shadow: 0 0 0 2px #e4bd54, inset 0 0 0 1px rgba(255,255,255,0.4);
+}
+
+.unit-roster-list button:focus-visible {
+  outline: 3px solid #fff0ad;
+  outline-offset: 2px;
+}
+
+.roster-code {
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.unit-roster-list strong {
+  font-size: 15px;
+}
+
+.unit-roster-list small {
+  grid-column: 1 / 3;
+  overflow: hidden;
+  font-size: 8px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unit-roster-list em {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  color: #2e6b42;
+  font-size: 0;
+}
+
+.unit-roster-list em::after {
+  content: "●";
+  font-size: 10px;
 }
 
 .order-buttons {
@@ -1095,6 +1222,141 @@ button:disabled {
   min-width: 0;
 }
 
+.modal-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(5, 7, 6, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+.campaign-setup-dialog,
+.developer-dialog {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 56px);
+  overflow: auto;
+  color: #eee4c8;
+  border: 1px solid #82755c;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #292a25, #111412);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.72), inset 0 1px rgba(255,255,255,0.12);
+}
+
+.campaign-setup-dialog > header,
+.developer-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid #554f42;
+}
+
+.campaign-setup-dialog h1,
+.developer-dialog h1 {
+  margin: 3px 0 0;
+  color: #fff1c5;
+  font-size: 24px;
+  text-transform: uppercase;
+}
+
+.campaign-setup-dialog header span,
+.developer-dialog header span {
+  color: #bd9a54;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.theatre-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 18px 20px 0;
+}
+
+.theatre-choice-grid button {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 3px 8px;
+  padding: 13px;
+  text-align: left;
+  color: #d9cfb6;
+  border: 1px solid #575044;
+  border-radius: 6px;
+  background: #1b1e1b;
+}
+
+.theatre-choice-grid button.selected {
+  color: #fff1bd;
+  border-color: #d8b65f;
+  background: rgba(202, 163, 74, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255,226,145,0.2);
+}
+
+.theatre-choice-grid svg { grid-row: 1 / 3; color: #d4aa4d; }
+.theatre-choice-grid strong { font-size: 15px; }
+.theatre-choice-grid span { font-size: 11px; }
+
+.setup-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.65fr);
+  gap: 18px;
+  padding: 18px 20px 22px;
+}
+
+.setup-preview {
+  min-height: 310px;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 1px solid #5a5244;
+  border-radius: 6px;
+  background: #151815;
+}
+
+.setup-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.82) contrast(1.04);
+}
+
+.setup-preview > div {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 14px;
+  background: linear-gradient(transparent, rgba(8,10,9,0.94));
+}
+
+.setup-preview strong,
+.setup-preview span { display: block; }
+.setup-preview strong { color: #fff0bd; font-size: 17px; }
+.setup-preview span { margin-top: 4px; color: #d0c6ae; font-size: 12px; }
+
+.setup-fields { display: grid; align-content: start; gap: 16px; }
+.setup-fields > label span,
+.setup-fields legend { display: block; margin-bottom: 7px; color: #c9b98f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.setup-fields select { width: 100%; height: 42px; padding: 0 10px; color: #f2e7ca; border: 1px solid #5d5547; border-radius: 4px; background: #171a18; }
+.setup-fields fieldset { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; padding: 12px; border: 1px solid #514a3e; }
+.setup-fields fieldset label { display: flex; gap: 7px; align-items: center; }
+.setup-start { width: 100%; min-height: 48px; }
+
+.diagnostics-backdrop { place-items: end; padding: 76px 18px 44px; }
+.developer-dialog { width: min(430px, 100%); }
+.developer-dialog dl { display: grid; grid-template-columns: 120px 1fr; gap: 10px; margin: 0; padding: 20px; }
+.developer-dialog dt { color: #a99d82; }
+.developer-dialog dd { margin: 0; overflow-wrap: anywhere; color: #eee4c8; }
+.developer-dialog dd.healthy { color: #8fce8b; }
+.developer-dialog dd.unhealthy { color: #ff9477; }
+.developer-dialog > .primary-button { margin: 0 20px 20px; }
+
 .error-text {
   color: #ffb38e;
 }
@@ -1137,9 +1399,10 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       "orders orders"
+      "roster roster"
       "tray tray"
       "summary summary"
-      "submit endturn";
+      "submit submit";
   }
 }
 
@@ -1184,11 +1447,13 @@ button:disabled {
     grid-template-columns: 1fr;
     grid-template-areas:
       "orders"
+      "roster"
       "tray"
       "summary"
-      "submit"
-      "endturn";
+      "submit";
   }
+
+  .setup-detail-grid { grid-template-columns: 1fr; }
 
   .footer-bar {
     align-items: flex-start;

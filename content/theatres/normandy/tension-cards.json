@@ -1,0 +1,99 @@
+{
+  "cards": [
+    {
+      "id": "bocage-resistance",
+      "title": "Bocage Resistance",
+      "description": "{unit.name} is caught in the hedgerows around {region.name}, where every field can become a strongpoint.",
+      "category": "Operational",
+      "trigger": "DefensivePressure",
+      "targeting": {
+        "unitSelector": "playerLineLowestDefence",
+        "regionSelector": "playerFrontlineHighestVictory"
+      },
+      "options": [
+        {
+          "id": "bulldoze-through",
+          "label": "Bulldoze Through",
+          "description": "Commit engineers and ammunition to keep the advance moving.",
+          "effects": [
+            { "effectType": "modifyUnitStat", "unitSelector": "unit", "stat": "Attack", "amount": 1, "description": "{unit.name} gains +1 attack." },
+            { "effectType": "modifyUnitStat", "unitSelector": "unit", "stat": "Supply", "amount": -2, "description": "{unit.name} loses 2 supply." },
+            { "effectType": "addCampaignModifier", "modifierId": "bocage-tempo", "name": "Bocage Tempo", "durationTurns": 1, "values": { "attack": 1, "supplyRisk": 1 }, "description": "The formation maintains momentum through the bocage." }
+          ]
+        },
+        {
+          "id": "methodical-clearance",
+          "label": "Methodical Clearance",
+          "description": "Clear each field carefully and preserve the supply column.",
+          "effects": [
+            { "effectType": "modifyUnitStat", "unitSelector": "unit", "stat": "Defence", "amount": 1, "description": "{unit.name} gains +1 defence." },
+            { "effectType": "addResource", "resource": "Supplies", "amount": 2, "description": "Supplies increase by 2." },
+            { "effectType": "modifyRegion", "regionSelector": "region", "supplyValueDelta": 0, "addFeature": "PreparedPositions", "description": "{region.name} gains prepared positions." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "air-cover-window",
+      "title": "Air Cover Window",
+      "description": "Clearing weather gives {unit.name} a brief opportunity to shape the next operation.",
+      "category": "Weather",
+      "trigger": "WeatherForecast",
+      "targeting": {
+        "unitSelector": "playerAirOrArmourLowestMorale"
+      },
+      "options": [
+        {
+          "id": "close-support",
+          "label": "Close Support",
+          "description": "Concentrate sorties over the leading formations.",
+          "effects": [
+            { "effectType": "modifyUnitStat", "unitSelector": "unit", "stat": "Movement", "amount": 1, "description": "{unit.name} gains +1 movement." },
+            { "effectType": "modifyUnitStat", "unitSelector": "unit", "stat": "Morale", "amount": 1, "description": "{unit.name} gains +1 morale." },
+            { "effectType": "addCampaignModifier", "modifierId": "close-air-support", "name": "Close Air Support", "durationTurns": 1, "values": { "recon": 1, "attack": 1 }, "description": "Close air support is available this turn." }
+          ]
+        },
+        {
+          "id": "interdict-reinforcements",
+          "label": "Interdict Reinforcements",
+          "description": "Strike roads and railways beyond the immediate front.",
+          "effects": [
+            { "effectType": "addResource", "resource": "Fuel", "amount": 2, "description": "Fuel increases by 2." },
+            { "effectType": "addResource", "resource": "CommandPoints", "amount": 1, "description": "Command points increase by 1." },
+            { "effectType": "addCampaignModifier", "modifierId": "air-interdiction", "name": "Air Interdiction", "durationTurns": 2, "values": { "enemyMoralePressure": 1, "recon": 1 }, "description": "Enemy reinforcement routes are under air attack." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "breakout-pressure",
+      "title": "Breakout Pressure",
+      "description": "High command demands a visible breakthrough before the bridgehead loses momentum.",
+      "category": "Political",
+      "trigger": "PoliticalPressure",
+      "targeting": {},
+      "options": [
+        {
+          "id": "promise-breakthrough",
+          "label": "Promise a Breakthrough",
+          "description": "Accept a tighter timetable in exchange for immediate authority.",
+          "effects": [
+            { "effectType": "addResource", "resource": "CommandPoints", "amount": 2, "description": "Command points increase by 2." },
+            { "effectType": "addResource", "resource": "Manpower", "amount": -1, "description": "Manpower decreases by 1." },
+            { "effectType": "addCampaignModifier", "modifierId": "breakout-deadline", "name": "Breakout Deadline", "durationTurns": 2, "values": { "commandPoints": 2, "manpowerRisk": 1 }, "description": "A breakout deadline has been accepted." }
+          ]
+        },
+        {
+          "id": "secure-bridgehead",
+          "label": "Secure the Bridgehead",
+          "description": "Protect replacements and supplies at the cost of command influence.",
+          "effects": [
+            { "effectType": "addResource", "resource": "CommandPoints", "amount": -1, "description": "Command points decrease by 1." },
+            { "effectType": "addResource", "resource": "Manpower", "amount": 2, "description": "Manpower increases by 2." },
+            { "effectType": "addResource", "resource": "Supplies", "amount": 1, "description": "Supplies increase by 1." }
+          ]
+        }
+      ]
+    }
+  ]
+}

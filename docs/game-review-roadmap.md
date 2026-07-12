@@ -258,6 +258,8 @@ Exit gate:
 
 ### Phase 8 - UI Polish and Additional Theatre Readiness
 
+Status: **Complete — 11 July 2026.** The command table now follows the mockup's map-first hierarchy with End Turn in the header, a compact keyboard-accessible formation roster, clearer ownership/front/supply/selection/target/replay overlays, and an on-map legend. Campaign creation is a theatre/scenario/side setup dialog and developer health details live in a separate diagnostics dialog. Visual smoke coverage runs North Africa and Normandy at 1280x720 and 1440x900. Normandy is a complete `sandtable-content-v2` package—map, display metadata, generated background asset, scenario, formations, reserves, doctrines, events, and tensions—with no theatre-specific application branch.
+
 1. Refine ownership, front, supply, selection, valid-target, and replay overlays.
 2. Move developer status out of the gameplay HUD.
 3. Move campaign/scenario creation into a proper setup flow.

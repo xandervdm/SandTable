@@ -5,6 +5,7 @@ import type {
   CampaignStateResponse,
   MapDefinition,
   MapDisplayDefinition,
+  OrderType,
   RegionDefinition,
   Side,
   UnitState
@@ -18,6 +19,8 @@ interface PixiTheatreMapProps {
   selectedUnitRegionId: string | null;
   selectedTargetRegionId: string | null;
   validTargetIds: string[];
+  selectedPathRegionIds: string[];
+  orderType: OrderType;
   plannedUnitIds: string[];
   replayEvent: CampaignEvent | null;
   onUnitSelect(unitId: string): void;
@@ -79,6 +82,8 @@ export function PixiTheatreMap({
   selectedUnitRegionId,
   selectedTargetRegionId,
   validTargetIds,
+  selectedPathRegionIds,
+  orderType,
   plannedUnitIds,
   replayEvent,
   onUnitSelect,
@@ -212,6 +217,8 @@ export function PixiTheatreMap({
       selectedUnitRegionId,
       selectedTargetRegionId,
       validTargetIds,
+      selectedPathRegionIds,
+      orderType,
       plannedUnitIds,
       replayEvent,
       onUnitSelect,
@@ -229,6 +236,8 @@ export function PixiTheatreMap({
     selectedUnitRegionId,
     selectedTargetRegionId,
     validTargetIds,
+    selectedPathRegionIds,
+    orderType,
     plannedUnitIds,
     replayEvent,
     onUnitSelect,
@@ -297,6 +306,7 @@ function renderPixiScene(
   drawRegionHitAreas(layers.regionHits, props.map, regionStates, props);
 
   clearLayer(layers.mode);
+  drawOperationalControlOverlays(layers.mode, props.map, props);
   drawRoutes(layers.mode, routes, props, { highlightsOnly: true });
   drawRegionModeOverlays(layers.mode, props.map, props);
 
@@ -323,22 +333,30 @@ function drawReplayOverlay(viewport: Container, map: MapDefinition, event: Campa
 
   const attack = event.eventType === "Battle";
   const color = attack ? 0xf0604d : 0xf6d06f;
-  const dx = to.position.x - from.position.x;
-  const dy = to.position.y - from.position.y;
+  const pathIds = payloadStringArray(event.payload, "pathRegionIds");
+  const path = [from, ...pathIds
+    .map(regionId => map.regions.find(region => region.id === regionId))
+    .filter((region): region is RegionDefinition => Boolean(region))];
+  if (path[path.length - 1]?.id !== to.id) path.push(to);
+  const previous = path.length > 1 ? path[path.length - 2] : from;
+  const dx = to.position.x - previous.position.x;
+  const dy = to.position.y - previous.position.y;
   const length = Math.max(1, Math.hypot(dx, dy));
   const normalX = dx / length;
   const normalY = dy / length;
   const arrowSize = attack ? 18 : 14;
   const overlay = new Graphics();
+  overlay.circle(from.position.x, from.position.y, 12).stroke({ width: 4, color, alpha: 0.95 });
+  for (let index = 1; index < path.length; index += 1) {
+    overlay
+      .moveTo(path[index - 1].position.x, path[index - 1].position.y)
+      .lineTo(path[index].position.x, path[index].position.y)
+      .stroke({ width: attack ? 7 : 6, color: 0x100d08, alpha: 0.72, cap: "round" })
+      .moveTo(path[index - 1].position.x, path[index - 1].position.y)
+      .lineTo(path[index].position.x, path[index].position.y)
+      .stroke({ width: attack ? 3.5 : 3, color, alpha: 0.98, cap: "round" });
+  }
   overlay
-    .circle(from.position.x, from.position.y, 12)
-    .stroke({ width: 4, color, alpha: 0.95 })
-    .moveTo(from.position.x, from.position.y)
-    .lineTo(to.position.x, to.position.y)
-    .stroke({ width: attack ? 7 : 6, color: 0x100d08, alpha: 0.72, cap: "round" })
-    .moveTo(from.position.x, from.position.y)
-    .lineTo(to.position.x, to.position.y)
-    .stroke({ width: attack ? 3.5 : 3, color, alpha: 0.98, cap: "round" })
     .moveTo(to.position.x, to.position.y)
     .lineTo(
       to.position.x - normalX * arrowSize - normalY * arrowSize * 0.55,
@@ -365,6 +383,11 @@ function drawReplayOverlay(viewport: Container, map: MapDefinition, event: Campa
 function payloadString(payload: Record<string, unknown>, key: string) {
   const value = payload[key];
   return typeof value === "string" ? value : null;
+}
+
+function payloadStringArray(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function clearLayer(layer: Container) {
@@ -543,6 +566,63 @@ function drawRoutes(
   }
 }
 
+function drawOperationalControlOverlays(viewport: Container, map: MapDefinition, props: PixiTheatreMapProps) {
+  const definitions = new Map(map.regions.map(region => [region.id, region]));
+  const states = new Map(props.state.regions.map(region => [region.id, region]));
+  for (const route of map.routes) {
+    const from = definitions.get(route.fromRegionId);
+    const to = definitions.get(route.toRegionId);
+    if (!from || !to) continue;
+    const fromState = states.get(from.id);
+    const toState = states.get(to.id);
+    const fromOwner = fromState?.owner ?? from.owner;
+    const toOwner = toState?.owner ?? to.owner;
+    const opposingFront = fromOwner !== toOwner
+      && fromOwner !== "Neutral"
+      && toOwner !== "Neutral";
+    const controlledSupply = fromOwner === toOwner
+      && fromOwner !== "Neutral"
+      && route.supplyCost <= 1;
+    if (controlledSupply) {
+      const supplyColor = fromOwner === "Axis" ? 0xc7764e : 0x6ba6d5;
+      const supply = new Graphics()
+        .moveTo(from.position.x, from.position.y)
+        .lineTo(to.position.x, to.position.y)
+        .stroke({ width: 2, color: supplyColor, alpha: 0.58, cap: "round" });
+      viewport.addChild(supply);
+    }
+    if (opposingFront) {
+      const front = new Graphics()
+        .moveTo(from.position.x, from.position.y)
+        .lineTo(to.position.x, to.position.y)
+        .stroke({ width: 11, color: 0x17110d, alpha: 0.68, cap: "round" })
+        .moveTo(from.position.x, from.position.y)
+        .lineTo(to.position.x, to.position.y)
+        .stroke({ width: 5, color: 0xd35b45, alpha: 0.9, cap: "round" });
+      viewport.addChild(front);
+    }
+  }
+
+  if (props.selectedUnitRegionId && props.selectedPathRegionIds.length > 0) {
+    const ids = [props.selectedUnitRegionId, ...props.selectedPathRegionIds];
+    const color = props.orderType === "Attack" ? 0xf06b54 : 0xffd66b;
+    const path = new Graphics();
+    for (let index = 1; index < ids.length; index += 1) {
+      const from = definitions.get(ids[index - 1]);
+      const to = definitions.get(ids[index]);
+      if (!from || !to) continue;
+      path
+        .moveTo(from.position.x, from.position.y)
+        .lineTo(to.position.x, to.position.y)
+        .stroke({ width: 9, color: 0x17110d, alpha: 0.78, cap: "round" })
+        .moveTo(from.position.x, from.position.y)
+        .lineTo(to.position.x, to.position.y)
+        .stroke({ width: 4, color, alpha: 0.98, cap: "round" });
+    }
+    viewport.addChild(path);
+  }
+}
+
 function drawRegionHitAreas(
   viewport: Container,
   map: MapDefinition,
@@ -558,11 +638,11 @@ function drawRegionHitAreas(
 
     regionGraphic
       .ellipse(region.position.x, region.position.y, display.hitArea.rx, display.hitArea.ry)
-      .fill({ color: ownerColor.fill, alpha: 0.045 })
+      .fill({ color: ownerColor.fill, alpha: 0.11 })
       .stroke({
-        width: 1.2,
+        width: region.kind === "PrimaryObjective" ? 2.3 : 1.5,
         color: ownerColor.stroke,
-        alpha: 0.34
+        alpha: region.kind === "PrimaryObjective" ? 0.78 : 0.52
       });
     regionGraphic
       .circle(region.position.x, region.position.y, 4)
@@ -587,19 +667,20 @@ function drawRegionModeOverlays(viewport: Container, map: MapDefinition, props: 
 
     const display = resolveRegionDisplay(props.display, region.id);
     const regionGraphic = new Graphics();
+    const modeColor = props.orderType === "Attack" ? 0xf06b54 : 0xf8d77d;
     regionGraphic
       .ellipse(region.position.x, region.position.y, display.hitArea.rx, display.hitArea.ry)
-      .fill({ color: source || target ? 0xffefad : 0xf8d77d, alpha: source || target ? 0.15 : 0.1 })
+      .fill({ color: source || target ? 0xffefad : modeColor, alpha: source || target ? 0.18 : 0.12 })
       .stroke({
         width: source || target ? 3 : 2.3,
-        color: source || target ? 0xffefad : 0xf8d77d,
+        color: source || target ? 0xffefad : modeColor,
         alpha: source || target ? 0.95 : 0.72
       });
     regionGraphic
       .ellipse(region.position.x, region.position.y, display.hitArea.rx + 9, display.hitArea.ry + 7)
       .stroke({
         width: source || target ? 2.3 : 1.5,
-        color: source || target ? 0xfff2b8 : 0xf8d77d,
+        color: source || target ? 0xfff2b8 : modeColor,
         alpha: source || target ? 0.43 : 0.28
       });
 

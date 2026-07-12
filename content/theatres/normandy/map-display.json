@@ -1,0 +1,21 @@
+{
+  "theatreId": "normandy",
+  "coordinateSystem": { "width": 1536, "height": 1024 },
+  "backgroundImage": { "assetId": "map-base", "fit": "stretch" },
+  "regions": {
+    "cherbourg": { "labelOffset": { "x": 0, "y": -48 }, "hitArea": { "rx": 62, "ry": 38 }, "counterAnchor": { "x": 0, "y": 58 }, "stackDirection": "row" },
+    "utah-beach": { "labelOffset": { "x": -8, "y": -44 }, "hitArea": { "rx": 58, "ry": 34 }, "counterAnchor": { "x": 0, "y": 55 }, "stackDirection": "row" },
+    "sainte-mere-eglise": { "labelOffset": { "x": 0, "y": -45 }, "hitArea": { "rx": 70, "ry": 36 }, "counterAnchor": { "x": 0, "y": 56 }, "stackDirection": "row" },
+    "omaha-beach": { "labelOffset": { "x": 0, "y": -43 }, "hitArea": { "rx": 60, "ry": 34 }, "counterAnchor": { "x": 0, "y": 56 }, "stackDirection": "row" },
+    "carentan": { "labelOffset": { "x": -5, "y": -44 }, "hitArea": { "rx": 52, "ry": 34 }, "counterAnchor": { "x": 0, "y": 55 }, "stackDirection": "row" },
+    "bayeux": { "labelOffset": { "x": 0, "y": -44 }, "hitArea": { "rx": 50, "ry": 34 }, "counterAnchor": { "x": 0, "y": 55 }, "stackDirection": "row" },
+    "gold-beach": { "labelOffset": { "x": 0, "y": -42 }, "hitArea": { "rx": 55, "ry": 32 }, "counterAnchor": { "x": 0, "y": 54 }, "stackDirection": "row" },
+    "juno-beach": { "labelOffset": { "x": 0, "y": -42 }, "hitArea": { "rx": 55, "ry": 32 }, "counterAnchor": { "x": 0, "y": 54 }, "stackDirection": "row" },
+    "caen": { "labelOffset": { "x": 0, "y": -45 }, "hitArea": { "rx": 54, "ry": 36 }, "counterAnchor": { "x": 0, "y": 58 }, "stackDirection": "row" },
+    "saint-lo": { "labelOffset": { "x": 0, "y": -45 }, "hitArea": { "rx": 55, "ry": 36 }, "counterAnchor": { "x": 0, "y": 58 }, "stackDirection": "row" },
+    "villers-bocage": { "labelOffset": { "x": 0, "y": -45 }, "hitArea": { "rx": 66, "ry": 36 }, "counterAnchor": { "x": 0, "y": 58 }, "stackDirection": "row" },
+    "falaise": { "labelOffset": { "x": 0, "y": -45 }, "hitArea": { "rx": 52, "ry": 35 }, "counterAnchor": { "x": 0, "y": 56 }, "stackDirection": "row" },
+    "avranches": { "labelOffset": { "x": 0, "y": -44 }, "hitArea": { "rx": 58, "ry": 35 }, "counterAnchor": { "x": 0, "y": 56 }, "stackDirection": "row" },
+    "argentan": { "labelOffset": { "x": 0, "y": -44 }, "hitArea": { "rx": 55, "ry": 35 }, "counterAnchor": { "x": 0, "y": 56 }, "stackDirection": "row" }
+  }
+}

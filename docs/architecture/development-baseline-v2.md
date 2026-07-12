@@ -184,6 +184,15 @@ Each scenario identifies its `reserveIds` and `deploymentLimitPerSidePerTurn`. A
 - `BasicAiPlanner` is now a deterministic scored planner. It prioritises legal reserve deployment, vulnerable-unit withdrawal/resupply, valuable objectives and supply junctions, threatened-position defence, multi-formation attacks, logistics/support coordination, and force-preserving holds. Every selected plan still passes through the normal ordered command budget and the same Engine rules as player commands.
 - The command table computes reachable weighted paths from the latest state. The player may choose a legal target on the Pixi map or through the accessible order-target selector; the submitted typed command contains the complete ordered path and the cost projection uses every route in that path.
 
+### Phase 8 command table and theatre portability
+
+- Gameplay keeps the map as the visual focus. Ownership washes, opposing-owner front lines, low-cost friendly supply links, selection, legal targets, exact planned paths, and persisted replay paths are separate state-driven Pixi layers explained by an on-map legend.
+- The header owns campaign selection, setup, End Turn, and diagnostics. Runtime/API details are not part of the gameplay HUD.
+- Campaign setup discovers manifests and lets the player choose theatre, scenario, and side before creation. It contains no theatre-specific option list.
+- Every active player formation is also a native DOM button with pressed state and keyboard activation; order targets remain available through the native selector alongside Pixi interaction.
+- Supported desktop visual smoke sizes are 1280x720 and 1440x900, exercised for every authored theatre.
+- `normandy` is the portability proof: it is discovered and loaded through the same repository, validator, API DTOs, React shell, asset sync, and Pixi renderer as `north-africa`. All differences live under `content/theatres/normandy`.
+
 ### Scenario events
 
 `events.json` contains ordered, stable event definitions. An event has an ID, a deterministic trigger, optional conditions, an ordered effects collection, and display text.

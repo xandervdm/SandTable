@@ -1,0 +1,18 @@
+{
+  "events": [
+    {
+      "id": "panzer-lehr-released",
+      "trigger": { "turn": 2, "phase": "BeforeResolution" },
+      "conditions": [],
+      "effects": [{ "effectType": "setReserveStatus", "reserveId": "panzer-lehr-reserve", "reserveStatus": "Available", "description": "Panzer Lehr is released to theatre command." }],
+      "message": "Panzer Lehr Division has been released for a counterattack."
+    },
+    {
+      "id": "guards-armoured-released",
+      "trigger": { "turn": 3, "phase": "BeforeResolution" },
+      "conditions": [],
+      "effects": [{ "effectType": "setReserveStatus", "reserveId": "guards-armoured-reserve", "reserveStatus": "Available", "description": "The Guards Armoured Division enters the bridgehead." }],
+      "message": "Guards Armoured Division is ready at the invasion beaches."
+    }
+  ]
+}
